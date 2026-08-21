@@ -5,6 +5,7 @@
 <?import javafx.scene.control.Label?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 
 <BorderPane xmlns="http://javafx.com/javafx/13"
@@ -21,18 +22,24 @@
             <Region prefHeight="24.0" />
             <Button text="Welcome" onAction="#showWelcome" maxWidth="Infinity"
                     style="-fx-alignment: CENTER_LEFT; -fx-padding: 12;" />
+            <Button text="Stations" onAction="#showStations" maxWidth="Infinity"
+                    style="-fx-alignment: CENTER_LEFT; -fx-padding: 12;" />
+            <Button text="Active Sessions" onAction="#showActiveSessions" maxWidth="Infinity"
+                    style="-fx-alignment: CENTER_LEFT; -fx-padding: 12;" />
             <Button text="About" onAction="#showAbout" maxWidth="Infinity"
                     style="-fx-alignment: CENTER_LEFT; -fx-padding: 12;" />
         </VBox>
     </left>
     <center>
-        <VBox alignment="CENTER" spacing="14.0">
-            <padding>
-                <Insets top="40.0" right="48.0" bottom="40.0" left="48.0" />
-            </padding>
-            <Label fx:id="pageTitle" style="-fx-text-fill: #18212f; -fx-font-size: 34px; -fx-font-weight: bold;" />
-            <Label fx:id="pageDescription" wrapText="true" maxWidth="560.0"
-                   style="-fx-text-fill: #526172; -fx-font-size: 16px; -fx-text-alignment: center;" />
-        </VBox>
+        <StackPane fx:id="contentArea">
+            <VBox fx:id="informationPage" alignment="CENTER" spacing="14.0">
+                <padding>
+                    <Insets top="40.0" right="48.0" bottom="40.0" left="48.0" />
+                </padding>
+                <Label fx:id="pageTitle" style="-fx-text-fill: #18212f; -fx-font-size: 34px; -fx-font-weight: bold;" />
+                <Label fx:id="pageDescription" wrapText="true" maxWidth="560.0"
+                       style="-fx-text-fill: #526172; -fx-font-size: 16px; -fx-text-alignment: center;" />
+            </VBox>
+        </StackPane>
     </center>
 </BorderPane>

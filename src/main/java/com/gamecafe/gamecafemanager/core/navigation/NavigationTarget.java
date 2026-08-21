@@ -10,6 +10,12 @@ public enum NavigationTarget {
     WELCOME(
             "Welcome",
             "Game Cafe Manager is ready. Use the navigation menu to move between application areas."),
+    STATIONS(
+            "Stations",
+            "Manage the rentable resources available in the game cafe."),
+    ACTIVE_SESSIONS(
+            "Active Sessions",
+            "Monitor persisted sessions and their current elapsed time."),
     ABOUT(
             "About",
             "This is the initial desktop application foundation. Business features are not enabled yet.");
