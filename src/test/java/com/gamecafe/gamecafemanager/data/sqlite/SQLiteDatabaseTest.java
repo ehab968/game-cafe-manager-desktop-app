@@ -47,7 +47,7 @@ class SQLiteDatabaseTest {
         assertTrue(tables.contains("sessions"));
         assertTrue(tables.contains("products"));
         assertTrue(tables.contains("session_products"));
-        assertEquals(1, queryForInt("SELECT MAX(version) FROM schema_migrations"));
+        assertEquals(3, queryForInt("SELECT MAX(version) FROM schema_migrations"));
     }
 
     @Test
@@ -55,7 +55,7 @@ class SQLiteDatabaseTest {
         database.initialize();
         database.initialize();
 
-        assertEquals(1, queryForInt("SELECT COUNT(*) FROM schema_migrations"));
+        assertEquals(3, queryForInt("SELECT COUNT(*) FROM schema_migrations"));
     }
 
     @Test
