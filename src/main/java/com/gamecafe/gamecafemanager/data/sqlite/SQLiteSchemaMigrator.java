@@ -5,7 +5,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 
 final class SQLiteSchemaMigrator {
@@ -19,7 +19,10 @@ final class SQLiteSchemaMigrator {
                     + ")";
 
     private final List<SQLiteMigration> migrations =
-            Collections.singletonList(new V1InitialSchemaMigration());
+            Arrays.asList(
+                    new V1InitialSchemaMigration(),
+                    new V2StationNameNoCaseMigration(),
+                    new V3SessionTotalsMigration());
 
     void migrate(Connection connection) throws SQLException {
         createMigrationsTable(connection);
