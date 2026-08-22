@@ -33,7 +33,10 @@ public enum NavigationTarget {
             "Monitor persisted sessions and their current elapsed time."),
     ABOUT(
             "About",
-            "This is the initial desktop application foundation. Business features are not enabled yet.");
+            "Game Cafe Manager is a desktop application for managing PlayStation rooms, "
+                    + "billiard and ping-pong tables, timed sessions, products and inventory, "
+                    + "checkout and invoices, users, reports, and cafe settings.\n\n"
+                    + "Made by Ehab Salah.");
 
     private final String title;
     private final String description;
