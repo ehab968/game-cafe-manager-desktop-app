@@ -10,11 +10,13 @@ import com.gamecafe.gamecafemanager.data.sqlite.SQLiteDatabase;
 import com.gamecafe.gamecafemanager.domain.model.Station;
 import com.gamecafe.gamecafemanager.domain.model.StationType;
 import com.gamecafe.gamecafemanager.domain.repository.StationRepository;
+import com.gamecafe.gamecafemanager.domain.service.AuthorizationService;
 import com.gamecafe.gamecafemanager.domain.service.StationValidator;
 import com.gamecafe.gamecafemanager.domain.usecase.station.CreateStationUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.station.GetStationsUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.station.SetStationEnabledUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.station.UpdateStationUseCase;
+import com.gamecafe.gamecafemanager.support.AuthenticationTestSupport;
 import java.math.BigDecimal;
 import java.nio.file.Path;
 import java.util.List;
@@ -38,11 +40,13 @@ class StationManagementIntegrationTest {
         database.initialize();
         StationRepository repository = new SQLiteStationRepository(database);
         StationValidator validator = new StationValidator();
+        AuthorizationService authorization =
+                AuthenticationTestSupport.authenticatedAdmin(database);
 
-        createStation = new CreateStationUseCase(repository, validator);
-        updateStation = new UpdateStationUseCase(repository, validator);
+        createStation = new CreateStationUseCase(repository, validator, authorization);
+        updateStation = new UpdateStationUseCase(repository, validator, authorization);
         getStations = new GetStationsUseCase(repository);
-        setStationEnabled = new SetStationEnabledUseCase(repository);
+        setStationEnabled = new SetStationEnabledUseCase(repository, authorization);
     }
 
     @Test
@@ -84,5 +88,18 @@ class StationManagementIntegrationTest {
                 "billiard 1",
                 StationType.BILLIARD,
                 new BigDecimal("90.00")));
+    }
+
+    @Test
+    void rejectsInvalidStationConfigurationWithFieldErrors() {
+        ValidationException exception = assertThrows(ValidationException.class, () ->
+                createStation.execute("  ", null, new BigDecimal("-1.00")));
+
+        assertEquals("Name is required", exception.getErrors().get("name"));
+        assertEquals("Station type is required", exception.getErrors().get("type"));
+        assertEquals(
+                "Hourly price must be greater than zero",
+                exception.getErrors().get("hourlyRate"));
+        assertTrue(getStations.execute().isEmpty());
     }
 }

@@ -3,10 +3,12 @@ package com.gamecafe.gamecafemanager.domain.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import com.gamecafe.gamecafemanager.domain.model.ApplicationSettings;
 import com.gamecafe.gamecafemanager.domain.service.pricing.BillableDurationPolicy;
 import com.gamecafe.gamecafemanager.domain.service.pricing.GamingPricePolicy;
 import com.gamecafe.gamecafemanager.domain.service.pricing.MonetaryRoundingPolicy;
 import com.gamecafe.gamecafemanager.domain.service.pricing.PricingResult;
+import com.gamecafe.gamecafemanager.domain.service.pricing.SettingsBillableDurationPolicy;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
@@ -85,6 +87,30 @@ class PricingServiceTest {
                 start,
                 start.minusSeconds(1L),
                 hourlyRate));
+    }
+
+    @Test
+    void configurableIntervalRoundsOnlyAfterExactBoundaryIncludingNanoseconds() {
+        ApplicationSettings settings = new ApplicationSettings(
+                "Game Cafe", "EGP", "", null, 15);
+        PricingService intervalPricing = new PricingService(
+                new SettingsBillableDurationPolicy(() -> settings),
+                GamingPricePolicy.proratedHourlyRate(),
+                MonetaryRoundingPolicy.standardCurrency());
+
+        PricingResult exactBoundary = intervalPricing.calculate(
+                start,
+                start.plus(Duration.ofMinutes(15L)),
+                hourlyRate);
+        PricingResult justBeyondBoundary = intervalPricing.calculate(
+                start,
+                start.plus(Duration.ofMinutes(15L).plusNanos(1L)),
+                hourlyRate);
+
+        assertEquals(Duration.ofMinutes(15L), exactBoundary.getBillableDuration());
+        assertEquals(new BigDecimal("30.00"), exactBoundary.getGamingPrice());
+        assertEquals(Duration.ofMinutes(30L), justBeyondBoundary.getBillableDuration());
+        assertEquals(new BigDecimal("60.00"), justBeyondBoundary.getGamingPrice());
     }
 
     private void assertPrice(Duration duration, String expectedPrice) {

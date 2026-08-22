@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.gamecafe.gamecafemanager.core.database.DatabaseException;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -47,7 +50,12 @@ class SQLiteDatabaseTest {
         assertTrue(tables.contains("sessions"));
         assertTrue(tables.contains("products"));
         assertTrue(tables.contains("session_products"));
-        assertEquals(3, queryForInt("SELECT MAX(version) FROM schema_migrations"));
+        assertTrue(tables.contains("users"));
+        assertTrue(tables.contains("application_settings"));
+        assertEquals(9, queryForInt("SELECT MAX(version) FROM schema_migrations"));
+        assertEquals(1, queryForInt(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
+                        + "AND name = 'sessions_completed_end_time_index'"));
     }
 
     @Test
@@ -55,7 +63,7 @@ class SQLiteDatabaseTest {
         database.initialize();
         database.initialize();
 
-        assertEquals(3, queryForInt("SELECT COUNT(*) FROM schema_migrations"));
+        assertEquals(9, queryForInt("SELECT COUNT(*) FROM schema_migrations"));
     }
 
     @Test
@@ -85,6 +93,15 @@ class SQLiteDatabaseTest {
                 }));
 
         assertEquals(0, queryForInt("SELECT COUNT(*) FROM stations"));
+    }
+
+    @Test
+    void initializationFailureIsNeverSilentlySwallowed() throws IOException {
+        Path parentFile = Files.writeString(
+                temporaryDirectory.resolve("not-a-directory"), "blocked");
+        SQLiteDatabase inaccessible = new SQLiteDatabase(parentFile.resolve("database.db"));
+
+        assertThrows(DatabaseException.class, inaccessible::initialize);
     }
 
     private int insertStation(Connection connection, String name) throws SQLException {
