@@ -37,6 +37,7 @@ import com.gamecafe.gamecafemanager.domain.usecase.auth.HasUsersUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.auth.InitializeAdminUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.auth.LoginUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.auth.LogoutUseCase;
+import com.gamecafe.gamecafemanager.domain.usecase.auth.RestoreAuthenticationUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.invoice.GenerateInvoiceUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.CreateProductUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.GetProductsUseCase;
@@ -127,7 +128,9 @@ public class GameCafeApplication extends Application {
             database.initialize();
             configureDependencies();
             applySettings();
-            showLogin();
+            new RestoreAuthenticationUseCase(authenticationService)
+                    .execute()
+                    .ifPresentOrElse(this::showMain, this::showLogin);
             primaryStage.show();
         } catch (RuntimeException exception) {
             errorHandler.show(null, "Application could not start", exception);

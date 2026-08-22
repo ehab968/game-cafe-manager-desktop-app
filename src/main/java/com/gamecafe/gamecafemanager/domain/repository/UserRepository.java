@@ -17,6 +17,8 @@ public interface UserRepository {
 
     Optional<UserAccount> findAccountByUsername(String username);
 
+    Optional<User> findRememberedUser();
+
     boolean existsByUsername(String username);
 
     int count();
@@ -28,4 +30,8 @@ public interface UserRepository {
     void setEnabled(long id, boolean enabled);
 
     void updatePassword(long id, PasswordHash passwordHash);
+
+    void rememberAuthenticatedUser(long userId);
+
+    void clearRememberedUser();
 }

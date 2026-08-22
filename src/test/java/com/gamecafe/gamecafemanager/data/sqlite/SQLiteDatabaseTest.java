@@ -52,7 +52,8 @@ class SQLiteDatabaseTest {
         assertTrue(tables.contains("session_products"));
         assertTrue(tables.contains("users"));
         assertTrue(tables.contains("application_settings"));
-        assertEquals(9, queryForInt("SELECT MAX(version) FROM schema_migrations"));
+        assertTrue(tables.contains("remembered_authentication"));
+        assertEquals(10, queryForInt("SELECT MAX(version) FROM schema_migrations"));
         assertEquals(1, queryForInt(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
                         + "AND name = 'sessions_completed_end_time_index'"));
@@ -63,7 +64,7 @@ class SQLiteDatabaseTest {
         database.initialize();
         database.initialize();
 
-        assertEquals(9, queryForInt("SELECT COUNT(*) FROM schema_migrations"));
+        assertEquals(10, queryForInt("SELECT COUNT(*) FROM schema_migrations"));
     }
 
     @Test

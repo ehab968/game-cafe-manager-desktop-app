@@ -95,12 +95,42 @@ class AuthenticationIntegrationTest {
         }
         authenticationService.logout();
         assertFalse(authenticationService.getCurrentUser().isPresent());
+        assertFalse(userRepository.findRememberedUser().isPresent());
 
         assertInvalidCredentials(ADMIN_USERNAME, "wrong-password");
         assertInvalidCredentials("missing-user", ADMIN_PASSWORD);
 
         userRepository.setEnabled(admin.getId(), false);
         assertInvalidCredentials(ADMIN_USERNAME, ADMIN_PASSWORD);
+    }
+
+    @Test
+    void restoresRememberedEnabledUserAfterApplicationServiceRestart() {
+        User admin = initializeAdmin();
+        authenticate(ADMIN_USERNAME, ADMIN_PASSWORD);
+
+        AuthenticationService restartedService =
+                new AuthenticationService(userRepository, passwordHasher);
+
+        User restored = restartedService.restoreRememberedUser()
+                .orElseThrow(AssertionError::new);
+        assertEquals(admin.getId(), restored.getId());
+        assertEquals(admin.getId(), restartedService.getCurrentUser()
+                .orElseThrow(AssertionError::new).getId());
+    }
+
+    @Test
+    void doesNotRestoreDisabledRememberedUserAndClearsStoredSignIn() {
+        User admin = initializeAdmin();
+        authenticate(ADMIN_USERNAME, ADMIN_PASSWORD);
+        userRepository.setEnabled(admin.getId(), false);
+
+        AuthenticationService restartedService =
+                new AuthenticationService(userRepository, passwordHasher);
+
+        assertFalse(restartedService.restoreRememberedUser().isPresent());
+        assertFalse(restartedService.getCurrentUser().isPresent());
+        assertFalse(userRepository.findRememberedUser().isPresent());
     }
 
     private User initializeAdmin() {
@@ -119,6 +149,15 @@ class AuthenticationIntegrationTest {
         try {
             assertThrows(InvalidCredentialsException.class, () ->
                     authenticationService.authenticate(username, password));
+        } finally {
+            Arrays.fill(password, '\0');
+        }
+    }
+
+    private User authenticate(String username, String suppliedPassword) {
+        char[] password = suppliedPassword.toCharArray();
+        try {
+            return authenticationService.authenticate(username, password);
         } finally {
             Arrays.fill(password, '\0');
         }

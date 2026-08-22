@@ -109,6 +109,20 @@ public final class SQLiteUserRepository implements UserRepository {
     }
 
     @Override
+    public Optional<User> findRememberedUser() {
+        String sql = "SELECT " + qualifiedUserColumns()
+                + " FROM remembered_authentication remembered "
+                + "JOIN users user ON user.id = remembered.user_id WHERE remembered.id = 1";
+        try (Connection connection = database.openConnection();
+                PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet resultSet = statement.executeQuery()) {
+            return resultSet.next() ? Optional.of(mapUser(resultSet)) : Optional.empty();
+        } catch (SQLException exception) {
+            throw new DatabaseException("Could not restore remembered authentication", exception);
+        }
+    }
+
+    @Override
     public boolean existsByUsername(String username) {
         String sql = "SELECT 1 FROM users WHERE username = ? COLLATE NOCASE LIMIT 1";
         try (Connection connection = database.openConnection();
@@ -175,6 +189,32 @@ public final class SQLiteUserRepository implements UserRepository {
         }
     }
 
+    @Override
+    public void rememberAuthenticatedUser(long userId) {
+        String sql = "INSERT INTO remembered_authentication(id, user_id, remembered_at) "
+                + "VALUES (1, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')) "
+                + "ON CONFLICT(id) DO UPDATE SET user_id = excluded.user_id, "
+                + "remembered_at = excluded.remembered_at";
+        try (Connection connection = database.openConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, userId);
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new DatabaseException("Could not remember authenticated user", exception);
+        }
+    }
+
+    @Override
+    public void clearRememberedUser() {
+        try (Connection connection = database.openConnection();
+                PreparedStatement statement = connection.prepareStatement(
+                        "DELETE FROM remembered_authentication WHERE id = 1")) {
+            statement.executeUpdate();
+        } catch (SQLException exception) {
+            throw new DatabaseException("Could not clear remembered authentication", exception);
+        }
+    }
+
     private void bindPassword(
             PreparedStatement statement,
             int startIndex,
@@ -191,6 +231,11 @@ public final class SQLiteUserRepository implements UserRepository {
                 resultSet.getString("username"),
                 Role.valueOf(resultSet.getString("role")),
                 resultSet.getInt("enabled") == 1);
+    }
+
+    private String qualifiedUserColumns() {
+        return "user.id AS id, user.username AS username, user.role AS role, "
+                + "user.enabled AS enabled";
     }
 
     private int queryCount(String sql) {

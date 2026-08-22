@@ -29,11 +29,27 @@ public final class AuthenticationService {
                 || !passwordHasher.verify(password, account.getPasswordHash())) {
             throw new InvalidCredentialsException();
         }
+        userRepository.rememberAuthenticatedUser(account.getUser().getId());
         currentUser = account.getUser();
         return currentUser;
     }
 
+    public synchronized Optional<User> restoreRememberedUser() {
+        Optional<User> rememberedUser = userRepository.findRememberedUser();
+        if (!rememberedUser.isPresent()) {
+            return Optional.empty();
+        }
+        User user = rememberedUser.get();
+        if (!user.isEnabled()) {
+            userRepository.clearRememberedUser();
+            return Optional.empty();
+        }
+        currentUser = user;
+        return Optional.of(user);
+    }
+
     public synchronized void logout() {
+        userRepository.clearRememberedUser();
         currentUser = null;
     }
 
