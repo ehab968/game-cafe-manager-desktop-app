@@ -8,8 +8,11 @@ import com.gamecafe.gamecafemanager.domain.usecase.station.CreateStationUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.station.GetStationsUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.station.SetStationEnabledUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.station.UpdateStationUseCase;
+import com.gamecafe.gamecafemanager.presentation.component.UiComponents;
+import com.gamecafe.gamecafemanager.presentation.error.ApplicationErrorHandler;
+import com.gamecafe.gamecafemanager.presentation.format.ApplicationDisplayService;
+import com.gamecafe.gamecafemanager.presentation.style.UiStyles;
 import java.math.BigDecimal;
-import java.util.Map;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -18,7 +21,6 @@ import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
@@ -42,6 +44,8 @@ public class StationsController {
     private final GetStationsUseCase getStationsUseCase;
     private final SetStationEnabledUseCase setStationEnabledUseCase;
     private final GetActiveSessionsUseCase getActiveSessionsUseCase;
+    private final ApplicationDisplayService displayService;
+    private final ApplicationErrorHandler errorHandler;
     private final ObservableList<Station> stations = FXCollections.observableArrayList();
     private final Set<Long> runningStationIds = new HashSet<>();
 
@@ -71,7 +75,9 @@ public class StationsController {
             UpdateStationUseCase updateStationUseCase,
             GetStationsUseCase getStationsUseCase,
             SetStationEnabledUseCase setStationEnabledUseCase,
-            GetActiveSessionsUseCase getActiveSessionsUseCase) {
+            GetActiveSessionsUseCase getActiveSessionsUseCase,
+            ApplicationDisplayService displayService,
+            ApplicationErrorHandler errorHandler) {
         this.createStationUseCase = Objects.requireNonNull(createStationUseCase, "createStationUseCase");
         this.updateStationUseCase = Objects.requireNonNull(updateStationUseCase, "updateStationUseCase");
         this.getStationsUseCase = Objects.requireNonNull(getStationsUseCase, "getStationsUseCase");
@@ -79,17 +85,22 @@ public class StationsController {
                 setStationEnabledUseCase, "setStationEnabledUseCase");
         this.getActiveSessionsUseCase = Objects.requireNonNull(
                 getActiveSessionsUseCase, "getActiveSessionsUseCase");
+        this.displayService = Objects.requireNonNull(displayService, "displayService");
+        this.errorHandler = Objects.requireNonNull(errorHandler, "errorHandler");
     }
 
     @FXML
     private void initialize() {
+        stationTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         nameColumn.setCellValueFactory(cell -> new ReadOnlyStringWrapper(cell.getValue().getName()));
         typeColumn.setCellValueFactory(cell ->
                 new ReadOnlyStringWrapper(cell.getValue().getType().getDisplayName()));
         hourlyRateColumn.setCellValueFactory(cell ->
-                new ReadOnlyStringWrapper(cell.getValue().getHourlyRate().toPlainString()));
+                new ReadOnlyStringWrapper(
+                        displayService.formatMoney(cell.getValue().getHourlyRate())));
         statusColumn.setCellValueFactory(cell ->
                 new ReadOnlyStringWrapper(statusText(cell.getValue())));
+        statusColumn.setCellFactory(UiComponents.statusCellFactory());
 
         stationTable.setItems(stations);
         stationTable.getSelectionModel().selectedItemProperty().addListener(
@@ -122,13 +133,14 @@ public class StationsController {
             setStationEnabledUseCase.execute(selected.getId(), !selected.isEnabled());
             refreshStations();
         } catch (RuntimeException exception) {
-            showError("Could not change station status", exception.getMessage());
+            showError("Could not change station status", exception);
         }
     }
 
     private void showStationDialog(Station existing) {
         boolean creating = existing == null;
         Dialog<Void> dialog = new Dialog<>();
+        UiStyles.apply(dialog.getDialogPane());
         dialog.setTitle(creating ? "Create station" : "Edit station");
         dialog.setHeaderText(creating
                 ? "Add a rentable station"
@@ -158,6 +170,7 @@ public class StationsController {
                 ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
         Button saveButton = (Button) dialog.getDialogPane().lookupButton(saveButtonType);
+        saveButton.getStyleClass().add("primary-button");
         boolean[] saved = {false};
 
         saveButton.addEventFilter(ActionEvent.ACTION, event -> {
@@ -177,7 +190,7 @@ public class StationsController {
                 showValidationErrors(exception);
                 event.consume();
             } catch (RuntimeException exception) {
-                showError("Could not save station", exception.getMessage());
+                showError("Could not save station", exception);
                 event.consume();
             }
         });
@@ -201,14 +214,23 @@ public class StationsController {
     }
 
     private void refreshStations() {
+        stations.clear();
+        stationTable.setPlaceholder(UiComponents.loadingState("Loading stations…"));
         try {
             runningStationIds.clear();
             getActiveSessionsUseCase.execute().forEach(
                     session -> runningStationIds.add(session.getStationId()));
             stations.setAll(getStationsUseCase.execute());
+            stationTable.setPlaceholder(UiComponents.emptyState(
+                    "No stations yet",
+                    "Create a station to make it available on the dashboard."));
             stationTable.refresh();
         } catch (RuntimeException exception) {
-            showError("Could not load stations", exception.getMessage());
+            stationTable.setPlaceholder(UiComponents.errorState(
+                    "Stations unavailable",
+                    "Station data could not be loaded.",
+                    this::refreshStations));
+            showError("Could not load stations", exception);
         }
     }
 
@@ -218,6 +240,10 @@ public class StationsController {
         toggleEnabledButton.setDisable(noSelection || isRunning(station));
         toggleEnabledButton.setText(
                 noSelection || station.isEnabled() ? "Disable" : "Enable");
+        toggleEnabledButton.getStyleClass().remove("danger-button");
+        if (!noSelection && station.isEnabled()) {
+            toggleEnabledButton.getStyleClass().add("danger-button");
+        }
     }
 
     private boolean isRunning(Station station) {
@@ -232,26 +258,15 @@ public class StationsController {
     }
 
     private void showValidationErrors(ValidationException exception) {
-        StringBuilder message = new StringBuilder();
-        for (Map.Entry<String, String> error : exception.getErrors().entrySet()) {
-            if (message.length() > 0) {
-                message.append(System.lineSeparator());
-            }
-            message.append(error.getValue());
-        }
-        showError("Check station details", message.toString());
+        showError("Check station details", exception);
     }
 
-    private void showError(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.ERROR);
-        alert.setTitle("Game Cafe Manager");
-        alert.setHeaderText(title);
-        alert.setContentText(message == null || message.trim().isEmpty()
-                ? "The operation could not be completed."
-                : message);
-        if (stationTable.getScene() != null) {
-            alert.initOwner(stationTable.getScene().getWindow());
-        }
-        alert.showAndWait();
+    private void showError(String title, Throwable failure) {
+        errorHandler.show(
+                stationTable.getScene() == null
+                        ? null
+                        : stationTable.getScene().getWindow(),
+                title,
+                failure);
     }
 }

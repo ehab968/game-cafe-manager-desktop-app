@@ -19,5 +19,9 @@ public interface StationRepository {
 
     boolean existsByName(String name, Long excludedStationId);
 
+    /**
+     * Changes station availability. Disabling must fail when the station has
+     * an active session so the invariant is protected below the UI layer.
+     */
     void setEnabled(long id, boolean enabled);
 }

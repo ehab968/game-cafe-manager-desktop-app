@@ -1,6 +1,9 @@
 package com.gamecafe.gamecafemanager.presentation.viewmodel;
 
 import com.gamecafe.gamecafemanager.domain.model.Session;
+import com.gamecafe.gamecafemanager.domain.service.PricingService;
+import com.gamecafe.gamecafemanager.domain.service.pricing.PricingResult;
+import com.gamecafe.gamecafemanager.presentation.format.ApplicationDisplayService;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
@@ -19,10 +22,16 @@ public final class ActiveSessionViewModel {
     private final String stationName;
     private final Instant startTime;
     private final BigDecimal hourlyRateSnapshot;
+    private final ApplicationDisplayService displayService;
     private final ReadOnlyStringWrapper elapsedText = new ReadOnlyStringWrapper("00:00:00");
+    private final ReadOnlyStringWrapper currentGamingCost = new ReadOnlyStringWrapper();
 
-    public ActiveSessionViewModel(Session session) {
+    public ActiveSessionViewModel(
+            Session session,
+            ApplicationDisplayService displayService) {
         Objects.requireNonNull(session, "session");
+        this.displayService = Objects.requireNonNull(displayService, "displayService");
+        currentGamingCost.set(displayService.formatMoney(BigDecimal.ZERO.setScale(2)));
         if (session.getId() == null) {
             throw new IllegalArgumentException("Persisted session id is required");
         }
@@ -33,12 +42,16 @@ public final class ActiveSessionViewModel {
         this.hourlyRateSnapshot = session.getHourlyRateSnapshot();
     }
 
-    public void refresh(Instant currentTime) {
+    public void refresh(Instant currentTime, PricingService pricingService) {
         Objects.requireNonNull(currentTime, "currentTime");
-        Duration elapsed = currentTime.isBefore(startTime)
-                ? Duration.ZERO
-                : Duration.between(startTime, currentTime);
-        elapsedText.set(formatDuration(elapsed));
+        Objects.requireNonNull(pricingService, "pricingService");
+        Instant effectiveTime = currentTime.isBefore(startTime) ? startTime : currentTime;
+        PricingResult result = pricingService.calculate(
+                startTime,
+                effectiveTime,
+                hourlyRateSnapshot);
+        elapsedText.set(formatDuration(result.getElapsedDuration()));
+        currentGamingCost.set(displayService.formatMoney(result.getGamingPrice()));
     }
 
     public long getSessionId() {
@@ -67,6 +80,14 @@ public final class ActiveSessionViewModel {
 
     public ReadOnlyStringProperty elapsedTextProperty() {
         return elapsedText.getReadOnlyProperty();
+    }
+
+    public String getCurrentGamingCost() {
+        return currentGamingCost.get();
+    }
+
+    public ReadOnlyStringProperty currentGamingCostProperty() {
+        return currentGamingCost.getReadOnlyProperty();
     }
 
     private String formatDuration(Duration duration) {

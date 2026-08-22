@@ -7,12 +7,27 @@ package com.gamecafe.gamecafemanager.core.navigation;
  * implementation phases.
  */
 public enum NavigationTarget {
+    DASHBOARD(
+            "Dashboard",
+            "Monitor all stations and active sessions."),
     WELCOME(
             "Welcome",
-            "Game Cafe Manager is ready. Use the navigation menu to move between application areas."),
+            "The cafe management application is ready. Use the navigation menu to move between application areas."),
     STATIONS(
             "Stations",
             "Manage the rentable resources available in the game cafe."),
+    PRODUCTS(
+            "Products",
+            "Manage inventory products, current prices, and stock."),
+    USERS(
+            "Users",
+            "Manage local users and roles."),
+    REPORTS(
+            "Reports",
+            "Review completed-session revenue and usage."),
+    SETTINGS(
+            "Settings",
+            "Configure cafe branding, invoices, and session billing."),
     ACTIVE_SESSIONS(
             "Active Sessions",
             "Monitor persisted sessions and their current elapsed time."),

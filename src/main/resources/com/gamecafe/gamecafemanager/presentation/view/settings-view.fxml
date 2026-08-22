@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Separator?>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<ScrollPane fitToWidth="true" hbarPolicy="NEVER"
+            xmlns="http://javafx.com/javafx/13"
+            xmlns:fx="http://javafx.com/fxml/1"
+            styleClass="page-scroll">
+    <content>
+        <VBox maxWidth="760.0" styleClass="page">
+            <Label text="Settings" styleClass="page-title" />
+            <Label text="Configure branding, invoices, and session billing rules." styleClass="page-subtitle" />
+
+            <GridPane hgap="16.0" vgap="12.0" styleClass="section-card">
+                <columnConstraints>
+                    <ColumnConstraints percentWidth="34.0" />
+                    <ColumnConstraints percentWidth="66.0" hgrow="ALWAYS" />
+                </columnConstraints>
+                <Label text="Cafe name" GridPane.rowIndex="0" GridPane.columnIndex="0" />
+                <TextField fx:id="cafeNameField" GridPane.rowIndex="0" GridPane.columnIndex="1"
+                           promptText="Cafe name" maxWidth="Infinity" GridPane.hgrow="ALWAYS" />
+                <Label text="Currency display" GridPane.rowIndex="1" GridPane.columnIndex="0" />
+                <TextField fx:id="currencyDisplayField" GridPane.rowIndex="1" GridPane.columnIndex="1"
+                           promptText="e.g. USD or $" maxWidth="Infinity" GridPane.hgrow="ALWAYS" />
+                <Label text="Invoice footer" GridPane.rowIndex="2" GridPane.columnIndex="0" />
+                <TextArea fx:id="invoiceFooterField" GridPane.rowIndex="2" GridPane.columnIndex="1"
+                          prefRowCount="3" wrapText="true" maxWidth="Infinity" GridPane.hgrow="ALWAYS" />
+            </GridPane>
+
+            <Separator />
+
+            <GridPane hgap="16.0" vgap="12.0" styleClass="section-card">
+                <columnConstraints>
+                    <ColumnConstraints percentWidth="45.0" />
+                    <ColumnConstraints percentWidth="55.0" hgrow="ALWAYS" />
+                </columnConstraints>
+                <Label text="Minimum session minutes" GridPane.rowIndex="0" GridPane.columnIndex="0" />
+                <TextField fx:id="minimumDurationField" GridPane.rowIndex="0" GridPane.columnIndex="1"
+                           promptText="Optional" maxWidth="Infinity" GridPane.hgrow="ALWAYS" />
+                <Label text="Shorter sessions are billed at this minimum. Leave blank to disable."
+                       wrapText="true" styleClass="helper-text"
+                       GridPane.rowIndex="1" GridPane.columnIndex="1" />
+                <Label text="Round billable time to minutes" GridPane.rowIndex="2" GridPane.columnIndex="0" />
+                <TextField fx:id="roundingMinutesField" GridPane.rowIndex="2" GridPane.columnIndex="1"
+                           promptText="Optional, e.g. 15" maxWidth="Infinity" GridPane.hgrow="ALWAYS" />
+                <Label text="Billable time rounds upward to this interval. Leave blank for exact time."
+                       wrapText="true" styleClass="helper-text"
+                       GridPane.rowIndex="3" GridPane.columnIndex="1" />
+            </GridPane>
+
+            <HBox alignment="CENTER_RIGHT" spacing="12.0">
+                <Label fx:id="savedLabel" wrapText="true" />
+                <Region HBox.hgrow="ALWAYS" />
+                <Button text="Save settings" onAction="#save" styleClass="primary-button" />
+            </HBox>
+        </VBox>
+    </content>
+</ScrollPane>

@@ -13,6 +13,7 @@ public final class Session {
     private final Long id;
     private final long stationId;
     private final String stationNameSnapshot;
+    private final StationType stationTypeSnapshot;
     private final Instant startTime;
     private final Instant endTime;
     private final SessionStatus status;
@@ -25,6 +26,7 @@ public final class Session {
             Long id,
             long stationId,
             String stationNameSnapshot,
+            StationType stationTypeSnapshot,
             Instant startTime,
             Instant endTime,
             SessionStatus status,
@@ -36,6 +38,8 @@ public final class Session {
         this.stationId = stationId;
         this.stationNameSnapshot = Objects.requireNonNull(
                 stationNameSnapshot, "stationNameSnapshot");
+        this.stationTypeSnapshot = Objects.requireNonNull(
+                stationTypeSnapshot, "stationTypeSnapshot");
         this.startTime = Objects.requireNonNull(startTime, "startTime");
         this.endTime = endTime;
         this.status = Objects.requireNonNull(status, "status");
@@ -56,6 +60,10 @@ public final class Session {
 
     public String getStationNameSnapshot() {
         return stationNameSnapshot;
+    }
+
+    public StationType getStationTypeSnapshot() {
+        return stationTypeSnapshot;
     }
 
     public Instant getStartTime() {

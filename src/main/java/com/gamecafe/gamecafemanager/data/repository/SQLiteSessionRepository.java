@@ -3,9 +3,12 @@ package com.gamecafe.gamecafemanager.data.repository;
 import com.gamecafe.gamecafemanager.core.database.Database;
 import com.gamecafe.gamecafemanager.core.database.DatabaseException;
 import com.gamecafe.gamecafemanager.domain.exception.ActiveSessionAlreadyExistsException;
+import com.gamecafe.gamecafemanager.domain.exception.DuplicateCheckoutException;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotActiveException;
+import com.gamecafe.gamecafemanager.domain.exception.SessionNotFoundException;
 import com.gamecafe.gamecafemanager.domain.model.Session;
 import com.gamecafe.gamecafemanager.domain.model.SessionStatus;
+import com.gamecafe.gamecafemanager.domain.model.StationType;
 import com.gamecafe.gamecafemanager.domain.repository.SessionRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -28,7 +31,7 @@ public final class SQLiteSessionRepository implements SessionRepository {
 
     private static final int MONEY_SCALE = 2;
     private static final String SELECT_COLUMNS =
-            "id, station_id, station_name, station_rate_minor, start_time, end_time, "
+            "id, station_id, station_name, station_type, station_rate_minor, start_time, end_time, "
                     + "status, station_total_minor, products_total_minor, final_total_minor";
 
     private final Database database;
@@ -40,22 +43,24 @@ public final class SQLiteSessionRepository implements SessionRepository {
     @Override
     public Session create(Session session) {
         String sql = "INSERT INTO sessions("
-                + "station_id, station_name, station_rate_minor, start_time, end_time, status, "
+                + "station_id, station_name, station_type, station_rate_minor, "
+                + "start_time, end_time, status, "
                 + "station_total_minor, products_total_minor, final_total_minor) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(
                         sql, Statement.RETURN_GENERATED_KEYS)) {
             statement.setLong(1, session.getStationId());
             statement.setString(2, session.getStationNameSnapshot());
-            statement.setLong(3, toMinorUnits(session.getHourlyRateSnapshot()));
-            statement.setString(4, session.getStartTime().toString());
-            statement.setString(5, null);
-            statement.setString(6, session.getStatus().name());
-            statement.setLong(7, toMinorUnits(session.getPlayCost()));
-            statement.setLong(8, toMinorUnits(session.getProductsCost()));
-            statement.setLong(9, toMinorUnits(session.getFinalTotal()));
+            statement.setString(3, session.getStationTypeSnapshot().name());
+            statement.setLong(4, toMinorUnits(session.getHourlyRateSnapshot()));
+            statement.setString(5, session.getStartTime().toString());
+            statement.setString(6, null);
+            statement.setString(7, session.getStatus().name());
+            statement.setLong(8, toMinorUnits(session.getPlayCost()));
+            statement.setLong(9, toMinorUnits(session.getProductsCost()));
+            statement.setLong(10, toMinorUnits(session.getFinalTotal()));
             statement.executeUpdate();
 
             try (ResultSet keys = statement.getGeneratedKeys()) {
@@ -77,28 +82,33 @@ public final class SQLiteSessionRepository implements SessionRepository {
         if (completedSession.getId() == null) {
             throw new IllegalArgumentException("Session id is required for completion");
         }
-
-        String sql = "UPDATE sessions SET end_time = ?, status = ?, station_total_minor = ?, "
-                + "products_total_minor = ?, final_total_minor = ?, "
-                + "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
-                + "WHERE id = ? AND status = 'ACTIVE'";
-
-        try (Connection connection = database.openConnection();
-                PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, completedSession.getEndTime().toString());
-            statement.setString(2, completedSession.getStatus().name());
-            statement.setLong(3, toMinorUnits(completedSession.getPlayCost()));
-            statement.setLong(4, toMinorUnits(completedSession.getProductsCost()));
-            statement.setLong(5, toMinorUnits(completedSession.getFinalTotal()));
-            statement.setLong(6, completedSession.getId());
-            if (statement.executeUpdate() == 0) {
-                throw new SessionNotActiveException(completedSession.getId());
-            }
-            return completedSession;
-        } catch (SQLException exception) {
-            throw new DatabaseException(
-                    "Could not finish session " + completedSession.getId(), exception);
+        if (completedSession.getEndTime() == null) {
+            throw new IllegalArgumentException("Session end time is required for completion");
         }
+
+        return database.executeInTransaction(connection -> {
+            long playCostMinor = toMinorUnits(completedSession.getPlayCost());
+            claimActiveSession(connection, completedSession, playCostMinor);
+            long productsTotalMinor = loadProductsTotal(connection, completedSession.getId());
+            long finalTotalMinor = Math.addExact(playCostMinor, productsTotalMinor);
+            storeCheckoutTotals(
+                    connection,
+                    completedSession.getId(),
+                    productsTotalMinor,
+                    finalTotalMinor);
+            return new Session(
+                    completedSession.getId(),
+                    completedSession.getStationId(),
+                    completedSession.getStationNameSnapshot(),
+                    completedSession.getStationTypeSnapshot(),
+                    completedSession.getStartTime(),
+                    completedSession.getEndTime(),
+                    completedSession.getStatus(),
+                    completedSession.getHourlyRateSnapshot(),
+                    fromMinorUnits(playCostMinor),
+                    fromMinorUnits(productsTotalMinor),
+                    fromMinorUnits(finalTotalMinor));
+        });
     }
 
     @Override
@@ -158,6 +168,7 @@ public final class SQLiteSessionRepository implements SessionRepository {
                 resultSet.getLong("id"),
                 resultSet.getLong("station_id"),
                 resultSet.getString("station_name"),
+                StationType.valueOf(resultSet.getString("station_type")),
                 Instant.parse(resultSet.getString("start_time")),
                 endTime == null ? null : Instant.parse(endTime),
                 SessionStatus.valueOf(resultSet.getString("status")),
@@ -167,11 +178,78 @@ public final class SQLiteSessionRepository implements SessionRepository {
                 fromMinorUnits(resultSet.getLong("final_total_minor")));
     }
 
+    private void claimActiveSession(
+            Connection connection,
+            Session completedSession,
+            long playCostMinor) throws SQLException {
+        String sql = "UPDATE sessions SET end_time = ?, status = 'COMPLETED', "
+                + "station_total_minor = ?, "
+                + "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
+                + "WHERE id = ? AND status = 'ACTIVE'";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, completedSession.getEndTime().toString());
+            statement.setLong(2, playCostMinor);
+            statement.setLong(3, completedSession.getId());
+            if (statement.executeUpdate() == 0) {
+                throwSessionCompletionFailure(connection, completedSession.getId());
+            }
+        }
+    }
+
+    private void throwSessionCompletionFailure(Connection connection, long sessionId)
+            throws SQLException {
+        String sql = "SELECT status FROM sessions WHERE id = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, sessionId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    throw new SessionNotFoundException(sessionId);
+                }
+                if (SessionStatus.COMPLETED.name().equals(resultSet.getString("status"))) {
+                    throw new DuplicateCheckoutException(sessionId);
+                }
+                throw new SessionNotActiveException(sessionId);
+            }
+        }
+    }
+
+    private long loadProductsTotal(Connection connection, long sessionId) throws SQLException {
+        String sql = "SELECT COALESCE(SUM(line_total_minor), 0) "
+                + "FROM session_products WHERE session_id = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, sessionId);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    throw new SQLException("Could not calculate session product total");
+                }
+                return resultSet.getLong(1);
+            }
+        }
+    }
+
+    private void storeCheckoutTotals(
+            Connection connection,
+            long sessionId,
+            long productsTotalMinor,
+            long finalTotalMinor) throws SQLException {
+        String sql = "UPDATE sessions SET products_total_minor = ?, final_total_minor = ? "
+                + "WHERE id = ? AND status = 'COMPLETED'";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, productsTotalMinor);
+            statement.setLong(2, finalTotalMinor);
+            statement.setLong(3, sessionId);
+            if (statement.executeUpdate() == 0) {
+                throw new SQLException("Could not store checkout totals for session " + sessionId);
+            }
+        }
+    }
+
     private Session copyWithId(Session session, long id) {
         return new Session(
                 id,
                 session.getStationId(),
                 session.getStationNameSnapshot(),
+                session.getStationTypeSnapshot(),
                 session.getStartTime(),
                 session.getEndTime(),
                 session.getStatus(),

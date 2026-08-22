@@ -22,7 +22,13 @@ final class SQLiteSchemaMigrator {
             Arrays.asList(
                     new V1InitialSchemaMigration(),
                     new V2StationNameNoCaseMigration(),
-                    new V3SessionTotalsMigration());
+                    new V3SessionTotalsMigration(),
+                    new V4ProductNameNoCaseMigration(),
+                    new V5SessionProductLineTotalMigration(),
+                    new V6SessionStationTypeSnapshotMigration(),
+                    new V7UsersMigration(),
+                    new V8CompletedSessionReportIndexMigration(),
+                    new V9ApplicationSettingsMigration());
 
     void migrate(Connection connection) throws SQLException {
         createMigrationsTable(connection);

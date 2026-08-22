@@ -2,6 +2,7 @@ package com.gamecafe.gamecafemanager.data.repository;
 
 import com.gamecafe.gamecafemanager.core.database.Database;
 import com.gamecafe.gamecafemanager.core.database.DatabaseException;
+import com.gamecafe.gamecafemanager.domain.exception.StationInUseException;
 import com.gamecafe.gamecafemanager.domain.exception.StationNotFoundException;
 import com.gamecafe.gamecafemanager.domain.model.Station;
 import com.gamecafe.gamecafemanager.domain.model.StationType;
@@ -141,18 +142,39 @@ public final class SQLiteStationRepository implements StationRepository {
     @Override
     public void setEnabled(long id, boolean enabled) {
         String sql = "UPDATE stations SET active = ?, "
-                + "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?";
+                + "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
+                + "WHERE id = ? AND (? = 1 OR NOT EXISTS ("
+                + "SELECT 1 FROM sessions WHERE station_id = ? AND status = 'ACTIVE'))";
 
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setInt(1, enabled ? 1 : 0);
             statement.setLong(2, id);
+            statement.setInt(3, enabled ? 1 : 0);
+            statement.setLong(4, id);
             if (statement.executeUpdate() == 0) {
-                throw new StationNotFoundException(id);
+                throwStationStatusFailure(connection, id, enabled);
             }
         } catch (SQLException exception) {
             throw new DatabaseException("Could not change station status " + id, exception);
         }
+    }
+
+    private void throwStationStatusFailure(Connection connection, long id, boolean enabled)
+            throws SQLException {
+        String sql = "SELECT 1 FROM stations WHERE id = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setLong(1, id);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    throw new StationNotFoundException(id);
+                }
+            }
+        }
+        if (!enabled) {
+            throw new StationInUseException(id);
+        }
+        throw new SQLException("Station status update did not affect station " + id);
     }
 
     private void bindStation(PreparedStatement statement, Station station) throws SQLException {

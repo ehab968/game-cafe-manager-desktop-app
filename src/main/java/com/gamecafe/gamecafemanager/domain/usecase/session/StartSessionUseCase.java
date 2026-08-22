@@ -4,10 +4,12 @@ import com.gamecafe.gamecafemanager.domain.exception.ActiveSessionAlreadyExistsE
 import com.gamecafe.gamecafemanager.domain.exception.StationDisabledException;
 import com.gamecafe.gamecafemanager.domain.exception.StationNotFoundException;
 import com.gamecafe.gamecafemanager.domain.model.Session;
+import com.gamecafe.gamecafemanager.domain.model.Permission;
 import com.gamecafe.gamecafemanager.domain.model.SessionStatus;
 import com.gamecafe.gamecafemanager.domain.model.Station;
 import com.gamecafe.gamecafemanager.domain.repository.SessionRepository;
 import com.gamecafe.gamecafemanager.domain.repository.StationRepository;
+import com.gamecafe.gamecafemanager.domain.service.AuthorizationService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -20,17 +22,21 @@ public final class StartSessionUseCase {
     private final StationRepository stationRepository;
     private final SessionRepository sessionRepository;
     private final Clock clock;
+    private final AuthorizationService authorization;
 
     public StartSessionUseCase(
             StationRepository stationRepository,
             SessionRepository sessionRepository,
-            Clock clock) {
+            Clock clock,
+            AuthorizationService authorization) {
         this.stationRepository = Objects.requireNonNull(stationRepository, "stationRepository");
         this.sessionRepository = Objects.requireNonNull(sessionRepository, "sessionRepository");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.authorization = Objects.requireNonNull(authorization, "authorization");
     }
 
     public Session execute(long stationId) {
+        authorization.require(Permission.OPERATE_SESSIONS);
         Station station = stationRepository.findById(stationId)
                 .orElseThrow(() -> new StationNotFoundException(stationId));
         if (!station.isEnabled()) {
@@ -44,6 +50,7 @@ public final class StartSessionUseCase {
                 null,
                 stationId,
                 station.getName(),
+                station.getType(),
                 clock.instant(),
                 null,
                 SessionStatus.ACTIVE,

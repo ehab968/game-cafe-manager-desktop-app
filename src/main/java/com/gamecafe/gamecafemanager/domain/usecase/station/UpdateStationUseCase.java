@@ -3,9 +3,11 @@ package com.gamecafe.gamecafemanager.domain.usecase.station;
 import com.gamecafe.gamecafemanager.core.validation.ValidationException;
 import com.gamecafe.gamecafemanager.domain.exception.StationNotFoundException;
 import com.gamecafe.gamecafemanager.domain.model.Station;
+import com.gamecafe.gamecafemanager.domain.model.Permission;
 import com.gamecafe.gamecafemanager.domain.model.StationType;
 import com.gamecafe.gamecafemanager.domain.repository.StationRepository;
 import com.gamecafe.gamecafemanager.domain.service.StationValidator;
+import com.gamecafe.gamecafemanager.domain.service.AuthorizationService;
 import java.math.BigDecimal;
 import java.util.Objects;
 
@@ -13,13 +15,19 @@ public final class UpdateStationUseCase {
 
     private final StationRepository repository;
     private final StationValidator validator;
+    private final AuthorizationService authorization;
 
-    public UpdateStationUseCase(StationRepository repository, StationValidator validator) {
+    public UpdateStationUseCase(
+            StationRepository repository,
+            StationValidator validator,
+            AuthorizationService authorization) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.validator = Objects.requireNonNull(validator, "validator");
+        this.authorization = Objects.requireNonNull(authorization, "authorization");
     }
 
     public Station execute(long id, String name, StationType type, BigDecimal hourlyRate) {
+        authorization.require(Permission.MANAGE_STATIONS);
         validator.validate(name, type, hourlyRate);
         Station existing = repository.findById(id)
                 .orElseThrow(() -> new StationNotFoundException(id));
