@@ -331,6 +331,11 @@
     -fx-text-fill: #b42318;
 }
 
+.status-running {
+    -fx-background-color: #fee9e5;
+    -fx-text-fill: #b42318;
+}
+
 .empty-state {
     -fx-alignment: center;
     -fx-spacing: 7;

@@ -194,6 +194,10 @@ public class DashboardController {
         type.getStyleClass().add("station-type");
         Label status = new Label(card.getStatusText());
         UiComponents.applyStatusStyle(status, card.getStatusText());
+        if (card.isActive()) {
+            status.getStyleClass().remove("status-positive");
+            status.getStyleClass().add("status-running");
+        }
 
         Label elapsed = new Label();
         elapsed.textProperty().bind(card.elapsedTextProperty());
