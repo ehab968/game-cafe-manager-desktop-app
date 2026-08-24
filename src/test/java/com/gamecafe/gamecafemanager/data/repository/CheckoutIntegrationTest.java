@@ -12,6 +12,7 @@ import com.gamecafe.gamecafemanager.domain.exception.SessionNotActiveException;
 import com.gamecafe.gamecafemanager.domain.model.CheckoutSummary;
 import com.gamecafe.gamecafemanager.domain.model.Product;
 import com.gamecafe.gamecafemanager.domain.model.Session;
+import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.SessionStatus;
 import com.gamecafe.gamecafemanager.domain.model.Station;
 import com.gamecafe.gamecafemanager.domain.model.StationType;
@@ -30,6 +31,7 @@ import com.gamecafe.gamecafemanager.domain.usecase.session.PrepareCheckoutUseCas
 import com.gamecafe.gamecafemanager.domain.usecase.session.StartSessionUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.sessionproduct.AddProductToSessionUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.station.CreateStationUseCase;
+import com.gamecafe.gamecafemanager.domain.usecase.station.UpdateStationUseCase;
 import com.gamecafe.gamecafemanager.support.AuthenticationTestSupport;
 import java.math.BigDecimal;
 import java.nio.file.Path;
@@ -71,12 +73,20 @@ class CheckoutIntegrationTest {
                 stationRepository, new StationValidator(), authorization).execute(
                         "PlayStation Room 1",
                         StationType.PLAYSTATION,
-                        new BigDecimal("100.00"));
+                        new BigDecimal("100.00"),
+                        new BigDecimal("140.00"));
         activeSession = new StartSessionUseCase(
                 stationRepository,
                 sessionRepository,
                 fixedClock(START_TIME),
-                authorization).execute(station.getId());
+                authorization).execute(station.getId(), SessionMode.MULTI);
+        new UpdateStationUseCase(
+                stationRepository, new StationValidator(), authorization).execute(
+                        station.getId(),
+                        station.getName(),
+                        station.getType(),
+                        new BigDecimal("200.00"),
+                        new BigDecimal("260.00"));
         Product product = new CreateProductUseCase(
                 productRepository, new ProductValidator(), authorization).execute(
                         "Water", new BigDecimal("12.50"), 10);
@@ -105,17 +115,20 @@ class CheckoutIntegrationTest {
 
         assertEquals(activeSession.getId().longValue(), summary.getSessionId());
         assertEquals(station.getName(), summary.getStationName());
+        assertEquals(StationType.PLAYSTATION, summary.getStationType());
+        assertEquals(SessionMode.MULTI, summary.getMode());
+        assertEquals(new BigDecimal("140.00"), summary.getHourlyRateSnapshot());
         assertEquals(START_TIME, summary.getStartTime());
         assertEquals(CHECKOUT_TIME, summary.getEndTime());
         assertEquals(Duration.ofMinutes(90L), summary.getDuration());
-        assertEquals(new BigDecimal("150.00"), summary.getGamingCost());
+        assertEquals(new BigDecimal("210.00"), summary.getGamingCost());
         assertEquals(1, summary.getPurchasedProducts().size());
         assertEquals("Water", summary.getPurchasedProducts().get(0).getProductNameSnapshot());
         assertEquals(new BigDecimal("12.50"),
                 summary.getPurchasedProducts().get(0).getUnitPriceSnapshot());
         assertEquals(2, summary.getPurchasedProducts().get(0).getQuantity());
         assertEquals(new BigDecimal("25.00"), summary.getProductsTotal());
-        assertEquals(new BigDecimal("175.00"), summary.getFinalTotal());
+        assertEquals(new BigDecimal("235.00"), summary.getFinalTotal());
 
         Session stillActive = sessionRepository.findById(activeSession.getId())
                 .orElseThrow(AssertionError::new);
@@ -130,16 +143,16 @@ class CheckoutIntegrationTest {
 
         assertEquals(SessionStatus.COMPLETED, completed.getStatus());
         assertEquals(CHECKOUT_TIME, completed.getEndTime());
-        assertEquals(new BigDecimal("150.00"), completed.getPlayCost());
+        assertEquals(new BigDecimal("210.00"), completed.getPlayCost());
         assertEquals(new BigDecimal("25.00"), completed.getProductsCost());
-        assertEquals(new BigDecimal("175.00"), completed.getFinalTotal());
+        assertEquals(new BigDecimal("235.00"), completed.getFinalTotal());
         assertFalse(sessionRepository.findActiveByStationId(station.getId()).isPresent());
 
         Session persisted = sessionRepository.findById(activeSession.getId())
                 .orElseThrow(AssertionError::new);
         assertNotNull(persisted.getEndTime());
         assertEquals(SessionStatus.COMPLETED, persisted.getStatus());
-        assertEquals(new BigDecimal("175.00"), persisted.getFinalTotal());
+        assertEquals(new BigDecimal("235.00"), persisted.getFinalTotal());
     }
 
     @Test
@@ -158,19 +171,20 @@ class CheckoutIntegrationTest {
                 activeSession.getStationId(),
                 activeSession.getStationNameSnapshot(),
                 activeSession.getStationTypeSnapshot(),
+                activeSession.getMode(),
                 activeSession.getStartTime(),
                 CHECKOUT_TIME,
                 SessionStatus.COMPLETED,
                 activeSession.getHourlyRateSnapshot(),
-                new BigDecimal("150.00"),
+                new BigDecimal("210.00"),
                 new BigDecimal("999.00"),
-                new BigDecimal("1149.00"));
+                new BigDecimal("1209.00"));
 
         Session completed = sessionRepository.finish(untrustedCompletion);
 
-        assertEquals(new BigDecimal("150.00"), completed.getPlayCost());
+        assertEquals(new BigDecimal("210.00"), completed.getPlayCost());
         assertEquals(new BigDecimal("25.00"), completed.getProductsCost());
-        assertEquals(new BigDecimal("175.00"), completed.getFinalTotal());
+        assertEquals(new BigDecimal("235.00"), completed.getFinalTotal());
         assertThrows(
                 DuplicateCheckoutException.class,
                 () -> sessionRepository.finish(untrustedCompletion));
@@ -183,10 +197,11 @@ class CheckoutIntegrationTest {
                 station.getId(),
                 station.getName(),
                 station.getType(),
+                SessionMode.MULTI,
                 START_TIME.minusSeconds(3_600L),
                 START_TIME.minusSeconds(1_800L),
                 SessionStatus.CANCELLED,
-                station.getHourlyRate(),
+                activeSession.getHourlyRateSnapshot(),
                 new BigDecimal("0.00"),
                 new BigDecimal("0.00"),
                 new BigDecimal("0.00")));

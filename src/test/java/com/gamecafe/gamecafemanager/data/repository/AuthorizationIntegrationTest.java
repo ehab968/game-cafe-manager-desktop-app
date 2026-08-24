@@ -12,6 +12,7 @@ import com.gamecafe.gamecafemanager.domain.model.Permission;
 import com.gamecafe.gamecafemanager.domain.model.Product;
 import com.gamecafe.gamecafemanager.domain.model.Role;
 import com.gamecafe.gamecafemanager.domain.model.Session;
+import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.SessionStatus;
 import com.gamecafe.gamecafemanager.domain.model.Station;
 import com.gamecafe.gamecafemanager.domain.model.StationType;
@@ -97,7 +98,10 @@ class AuthorizationIntegrationTest {
     void cashierIsDeniedManagementButCanOperateAndCheckoutSession() {
         Station station = new CreateStationUseCase(
                 stationRepository, new StationValidator(), authorization).execute(
-                        "Room 1", StationType.PLAYSTATION, new BigDecimal("120.00"));
+                        "Room 1",
+                        StationType.PLAYSTATION,
+                        new BigDecimal("120.00"),
+                        new BigDecimal("120.00"));
         Product product = new CreateProductUseCase(
                 productRepository, new ProductValidator(), authorization).execute(
                         "Water", new BigDecimal("10.00"), 5);
@@ -124,7 +128,7 @@ class AuthorizationIntegrationTest {
                 stationRepository,
                 sessionRepository,
                 fixedClock(START_TIME),
-                authorization).execute(station.getId());
+                authorization).execute(station.getId(), SessionMode.SINGLE);
         new AddProductToSessionUseCase(
                 sessionRepository, sessionProductRepository, authorization)
                 .execute(active.getId(), product.getId(), 2);

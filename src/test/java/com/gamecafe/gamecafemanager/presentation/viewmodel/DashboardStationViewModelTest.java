@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.gamecafe.gamecafemanager.domain.model.Session;
+import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.ApplicationSettings;
 import com.gamecafe.gamecafemanager.domain.model.SessionStatus;
 import com.gamecafe.gamecafemanager.domain.model.Station;
@@ -33,9 +34,9 @@ class DashboardStationViewModelTest {
 
         assertTrue(viewModel.isActive());
         assertFalse(viewModel.canStart());
-        assertEquals("Running", viewModel.getStatusText());
+        assertEquals("Running — Multi", viewModel.getStatusText());
         assertEquals("01:30:00", viewModel.getElapsedText());
-        assertEquals("EGP 180.00", viewModel.getCurrentGamingCost());
+        assertEquals("EGP 240.00", viewModel.getCurrentGamingCost());
     }
 
     @Test
@@ -66,6 +67,7 @@ class DashboardStationViewModelTest {
                 "PlayStation Room 1",
                 StationType.PLAYSTATION,
                 new BigDecimal("120.00"),
+                new BigDecimal("160.00"),
                 enabled);
     }
 
@@ -75,10 +77,11 @@ class DashboardStationViewModelTest {
                 7L,
                 "PlayStation Room 1",
                 StationType.PLAYSTATION,
+                SessionMode.MULTI,
                 START_TIME,
                 null,
                 SessionStatus.ACTIVE,
-                new BigDecimal("120.00"),
+                new BigDecimal("160.00"),
                 new BigDecimal("0.00"),
                 new BigDecimal("0.00"),
                 new BigDecimal("0.00"));

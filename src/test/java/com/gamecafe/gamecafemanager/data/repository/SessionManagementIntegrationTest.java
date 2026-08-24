@@ -7,11 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.gamecafe.gamecafemanager.core.validation.ValidationException;
 import com.gamecafe.gamecafemanager.data.sqlite.SQLiteDatabase;
 import com.gamecafe.gamecafemanager.domain.exception.ActiveSessionAlreadyExistsException;
 import com.gamecafe.gamecafemanager.domain.exception.StationDisabledException;
 import com.gamecafe.gamecafemanager.domain.exception.StationInUseException;
 import com.gamecafe.gamecafemanager.domain.model.Session;
+import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.SessionStatus;
 import com.gamecafe.gamecafemanager.domain.model.Station;
 import com.gamecafe.gamecafemanager.domain.model.StationType;
@@ -67,7 +69,8 @@ class SessionManagementIntegrationTest {
                 stationRepository, new StationValidator(), authorization).execute(
                 "PlayStation Room 1",
                 StationType.PLAYSTATION,
-                new BigDecimal("120.00"));
+                new BigDecimal("120.00"),
+                new BigDecimal("160.00"));
     }
 
     @Test
@@ -78,6 +81,7 @@ class SessionManagementIntegrationTest {
         assertEquals(START_TIME, started.getStartTime());
         assertNull(started.getEndTime());
         assertEquals(SessionStatus.ACTIVE, started.getStatus());
+        assertEquals(SessionMode.SINGLE, started.getMode());
         assertEquals(new BigDecimal("120.00"), started.getHourlyRateSnapshot());
 
         new UpdateStationUseCase(
@@ -104,6 +108,7 @@ class SessionManagementIntegrationTest {
         assertEquals(station.getId().longValue(), restored.getStationId());
         assertEquals("PlayStation Room 1", restored.getStationNameSnapshot());
         assertEquals(StationType.PLAYSTATION, restored.getStationTypeSnapshot());
+        assertEquals(SessionMode.SINGLE, restored.getMode());
         assertEquals(START_TIME, restored.getStartTime());
         assertNull(restored.getEndTime());
         assertEquals(SessionStatus.ACTIVE, restored.getStatus());
@@ -115,7 +120,7 @@ class SessionManagementIntegrationTest {
                         stationRepository,
                         reconstructedRepository,
                         fixedClock(START_TIME.plusSeconds(60L)),
-                        authorization).execute(station.getId()));
+                        authorization).execute(station.getId(), SessionMode.SINGLE));
     }
 
     @Test
@@ -128,6 +133,68 @@ class SessionManagementIntegrationTest {
     }
 
     @Test
+    void startsPlayStationSingleSessionWithSingleSnapshot() {
+        Session started = startSessionAt(START_TIME, SessionMode.SINGLE);
+
+        assertEquals(SessionMode.SINGLE, started.getMode());
+        assertEquals(new BigDecimal("120.00"), started.getHourlyRateSnapshot());
+    }
+
+    @Test
+    void startsPlayStationMultiSessionWithMultiSnapshot() {
+        Session started = startSessionAt(START_TIME, SessionMode.MULTI);
+
+        assertEquals(SessionMode.MULTI, started.getMode());
+        assertEquals(new BigDecimal("160.00"), started.getHourlyRateSnapshot());
+    }
+
+    @Test
+    void startsPingPongSingleAndMultiSessionsWithSelectedSnapshots() {
+        CreateStationUseCase createStation = new CreateStationUseCase(
+                stationRepository, new StationValidator(), authorization);
+        Station singleTable = createStation.execute(
+                "Ping Pong 1",
+                StationType.PING_PONG,
+                new BigDecimal("40.00"),
+                new BigDecimal("60.00"));
+        Station multiTable = createStation.execute(
+                "Ping Pong 2",
+                StationType.PING_PONG,
+                new BigDecimal("45.00"),
+                new BigDecimal("65.00"));
+
+        Session single = startSession(singleTable, START_TIME, SessionMode.SINGLE);
+        Session multi = startSession(multiTable, START_TIME, SessionMode.MULTI);
+
+        assertEquals(SessionMode.SINGLE, single.getMode());
+        assertEquals(new BigDecimal("40.00"), single.getHourlyRateSnapshot());
+        assertEquals(SessionMode.MULTI, multi.getMode());
+        assertEquals(new BigDecimal("65.00"), multi.getHourlyRateSnapshot());
+    }
+
+    @Test
+    void billiardStartsWithoutModeAndUsesOneRate() {
+        Station billiard = new CreateStationUseCase(
+                stationRepository, new StationValidator(), authorization).execute(
+                        "Billiard 1", StationType.BILLIARD, new BigDecimal("80.00"));
+
+        Session started = startSession(billiard, START_TIME, null);
+
+        assertNull(started.getMode());
+        assertEquals(new BigDecimal("80.00"), started.getHourlyRateSnapshot());
+    }
+
+    @Test
+    void modeCapableStationCannotStartWithoutMode() {
+        assertThrows(ValidationException.class, () ->
+                new StartSessionUseCase(
+                        stationRepository,
+                        sessionRepository,
+                        fixedClock(START_TIME),
+                        authorization).execute(station.getId()));
+    }
+
+    @Test
     void databaseConstraintAlsoPreventsDuplicateActiveSession() {
         Session started = startSessionAt(START_TIME);
         Session duplicate = new Session(
@@ -135,6 +202,7 @@ class SessionManagementIntegrationTest {
                 started.getStationId(),
                 started.getStationNameSnapshot(),
                 started.getStationTypeSnapshot(),
+                started.getMode(),
                 START_TIME.plusSeconds(1L),
                 null,
                 SessionStatus.ACTIVE,
@@ -149,15 +217,16 @@ class SessionManagementIntegrationTest {
     }
 
     @Test
-    void finishUsesPersistedStartAndRateSnapshot() {
-        Session started = startSessionAt(START_TIME);
+    void finishUsesPersistedStartAndSelectedMultiRateSnapshot() {
+        Session started = startSessionAt(START_TIME, SessionMode.MULTI);
 
         new UpdateStationUseCase(
                 stationRepository, new StationValidator(), authorization).execute(
                 station.getId(),
                 station.getName(),
                 station.getType(),
-                new BigDecimal("200.00"));
+                new BigDecimal("200.00"),
+                new BigDecimal("240.00"));
 
         Instant finishTime = START_TIME.plusSeconds(5_400L);
         FinishSessionUseCase finishSession = new FinishSessionUseCase(
@@ -170,22 +239,24 @@ class SessionManagementIntegrationTest {
 
         assertEquals(SessionStatus.COMPLETED, completed.getStatus());
         assertEquals(finishTime, completed.getEndTime());
-        assertEquals(new BigDecimal("120.00"), completed.getHourlyRateSnapshot());
-        assertEquals(new BigDecimal("180.00"), completed.getPlayCost());
+        assertEquals(SessionMode.MULTI, completed.getMode());
+        assertEquals(new BigDecimal("160.00"), completed.getHourlyRateSnapshot());
+        assertEquals(new BigDecimal("240.00"), completed.getPlayCost());
         assertEquals(new BigDecimal("0.00"), completed.getProductsCost());
-        assertEquals(new BigDecimal("180.00"), completed.getFinalTotal());
+        assertEquals(new BigDecimal("240.00"), completed.getFinalTotal());
         assertTrue(new GetActiveSessionsUseCase(
                 sessionRepository, authorization).execute().isEmpty());
 
         Session reloaded = sessionRepository.findById(completed.getId()).orElseThrow(AssertionError::new);
-        assertEquals(new BigDecimal("180.00"), reloaded.getFinalTotal());
+        assertEquals(SessionMode.MULTI, reloaded.getMode());
+        assertEquals(new BigDecimal("240.00"), reloaded.getFinalTotal());
 
         Instant restartTime = finishTime.plusSeconds(1L);
-        Session restarted = startSessionAt(restartTime);
+        Session restarted = startSessionAt(restartTime, SessionMode.MULTI);
         assertFalse(restarted.getId().equals(completed.getId()));
         assertEquals(restartTime, restarted.getStartTime());
         assertEquals(SessionStatus.ACTIVE, restarted.getStatus());
-        assertEquals(new BigDecimal("200.00"), restarted.getHourlyRateSnapshot());
+        assertEquals(new BigDecimal("240.00"), restarted.getHourlyRateSnapshot());
     }
 
     @Test
@@ -218,12 +289,20 @@ class SessionManagementIntegrationTest {
     }
 
     private Session startSessionAt(Instant instant) {
+        return startSessionAt(instant, SessionMode.SINGLE);
+    }
+
+    private Session startSessionAt(Instant instant, SessionMode mode) {
+        return startSession(station, instant, mode);
+    }
+
+    private Session startSession(Station target, Instant instant, SessionMode mode) {
         return new StartSessionUseCase(
                 stationRepository,
                 sessionRepository,
                 fixedClock(instant),
                 authorization)
-                .execute(station.getId());
+                .execute(target.getId(), mode);
     }
 
     private Clock fixedClock(Instant instant) {

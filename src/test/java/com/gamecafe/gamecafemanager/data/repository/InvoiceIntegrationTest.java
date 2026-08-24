@@ -1,6 +1,7 @@
 package com.gamecafe.gamecafemanager.data.repository;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.gamecafe.gamecafemanager.data.sqlite.SQLiteDatabase;
@@ -9,6 +10,7 @@ import com.gamecafe.gamecafemanager.domain.model.Invoice;
 import com.gamecafe.gamecafemanager.domain.model.ApplicationSettings;
 import com.gamecafe.gamecafemanager.domain.model.Product;
 import com.gamecafe.gamecafemanager.domain.model.Session;
+import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.Station;
 import com.gamecafe.gamecafemanager.domain.model.StationType;
 import com.gamecafe.gamecafemanager.domain.repository.ProductRepository;
@@ -104,8 +106,8 @@ class InvoiceIntegrationTest {
         new UpdateStationUseCase(
                 stationRepository, new StationValidator(), authorization).execute(
                 station.getId(),
-                "Ping-pong 9",
-                StationType.PING_PONG,
+                "Billiard 9",
+                StationType.BILLIARD,
                 new BigDecimal("200.00"));
         new UpdateProductUseCase(
                 productRepository, new ProductValidator(), authorization).execute(
@@ -122,6 +124,8 @@ class InvoiceIntegrationTest {
         assertEquals(completed.getId().longValue(), invoice.getSessionId());
         assertEquals("Billiard 1", invoice.getStationName());
         assertEquals(StationType.BILLIARD, invoice.getStationType());
+        assertNull(invoice.getMode());
+        assertEquals(new BigDecimal("80.00"), invoice.getHourlyRateSnapshot());
         assertEquals(START_TIME, invoice.getStartTime());
         assertEquals(END_TIME, invoice.getEndTime());
         assertEquals(Duration.ofHours(1L), invoice.getDuration());
@@ -135,6 +139,35 @@ class InvoiceIntegrationTest {
                 invoice.getPurchasedProducts().get(0).getLineTotal());
         assertEquals(new BigDecimal("20.00"), invoice.getProductsTotal());
         assertEquals(new BigDecimal("100.00"), invoice.getTotal());
+    }
+
+    @Test
+    void invoiceReflectsSelectedModeAndCapturedRate() {
+        Station playStation = new CreateStationUseCase(
+                stationRepository, new StationValidator(), authorization).execute(
+                        "PlayStation Room 2",
+                        StationType.PLAYSTATION,
+                        new BigDecimal("60.00"),
+                        new BigDecimal("80.00"));
+        Session multiSession = new StartSessionUseCase(
+                stationRepository,
+                sessionRepository,
+                fixedClock(START_TIME),
+                authorization).execute(playStation.getId(), SessionMode.MULTI);
+        Session completed = new FinishSessionUseCase(
+                sessionRepository,
+                sessionProductRepository,
+                new CheckoutService(new PricingService()),
+                fixedClock(END_TIME),
+                authorization).execute(multiSession.getId());
+
+        Invoice invoice = generateInvoice.execute(completed.getId());
+
+        assertEquals(StationType.PLAYSTATION, invoice.getStationType());
+        assertEquals(SessionMode.MULTI, invoice.getMode());
+        assertEquals(new BigDecimal("80.00"), invoice.getHourlyRateSnapshot());
+        assertEquals(new BigDecimal("80.00"), invoice.getGamingAmount());
+        assertEquals(new BigDecimal("80.00"), invoice.getTotal());
     }
 
     @Test

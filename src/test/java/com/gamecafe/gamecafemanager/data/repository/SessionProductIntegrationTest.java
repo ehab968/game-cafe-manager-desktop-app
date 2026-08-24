@@ -10,6 +10,7 @@ import com.gamecafe.gamecafemanager.domain.exception.InsufficientStockException;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotActiveException;
 import com.gamecafe.gamecafemanager.domain.model.Product;
 import com.gamecafe.gamecafemanager.domain.model.Session;
+import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.SessionProduct;
 import com.gamecafe.gamecafemanager.domain.model.Station;
 import com.gamecafe.gamecafemanager.domain.model.StationType;
@@ -79,12 +80,15 @@ class SessionProductIntegrationTest {
 
         Station station = new CreateStationUseCase(
                 stationRepository, new StationValidator(), authorization).execute(
-                        "Room 1", StationType.PLAYSTATION, new BigDecimal("120.00"));
+                        "Room 1",
+                        StationType.PLAYSTATION,
+                        new BigDecimal("120.00"),
+                        new BigDecimal("120.00"));
         activeSession = new StartSessionUseCase(
                 stationRepository,
                 sessionRepository,
                 fixedClock(START_TIME),
-                authorization).execute(station.getId());
+                authorization).execute(station.getId(), SessionMode.SINGLE);
     }
 
     @Test

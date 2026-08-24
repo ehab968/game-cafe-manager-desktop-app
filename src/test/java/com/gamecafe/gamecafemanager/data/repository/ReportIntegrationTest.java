@@ -11,6 +11,7 @@ import com.gamecafe.gamecafemanager.domain.model.CompletedSessionsReport;
 import com.gamecafe.gamecafemanager.domain.model.Product;
 import com.gamecafe.gamecafemanager.domain.model.Role;
 import com.gamecafe.gamecafemanager.domain.model.Session;
+import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.Station;
 import com.gamecafe.gamecafemanager.domain.model.StationType;
 import com.gamecafe.gamecafemanager.domain.repository.ProductRepository;
@@ -89,7 +90,8 @@ class ReportIntegrationTest {
                         roomA.getId(),
                         "Renamed Room",
                         roomA.getType(),
-                        roomA.getHourlyRate());
+                        roomA.getSingleHourlyRate(),
+                        roomA.getMultiHourlyRate());
         new UpdateProductUseCase(
                 productRepository, new ProductValidator(), authorization).execute(
                         cola.getId(), "Premium Cola", new BigDecimal("25.00"), 95);
@@ -98,7 +100,7 @@ class ReportIntegrationTest {
                 stationRepository,
                 sessionRepository,
                 fixedClock(Instant.parse("2026-08-21T16:00:00Z")),
-                authorization).execute(roomA.getId());
+                authorization).execute(roomA.getId(), SessionMode.SINGLE);
 
         getReport = new GetReportUseCase(
                 reportRepository,
@@ -165,9 +167,11 @@ class ReportIntegrationTest {
     }
 
     private Station createStation(String name, StationType type, BigDecimal rate) {
-        return new CreateStationUseCase(
-                stationRepository, new StationValidator(), authorization)
-                .execute(name, type, rate);
+        CreateStationUseCase createStation = new CreateStationUseCase(
+                stationRepository, new StationValidator(), authorization);
+        return type.supportsSessionModes()
+                ? createStation.execute(name, type, rate, rate)
+                : createStation.execute(name, type, rate);
     }
 
     private Product createProduct(String name, BigDecimal price) {
@@ -186,7 +190,9 @@ class ReportIntegrationTest {
                 stationRepository,
                 sessionRepository,
                 fixedClock(start),
-                authorization).execute(station.getId());
+                authorization).execute(
+                        station.getId(),
+                        station.getType().supportsSessionModes() ? SessionMode.SINGLE : null);
         new AddProductToSessionUseCase(
                 sessionRepository, sessionProductRepository, authorization)
                 .execute(active.getId(), product.getId(), quantity);

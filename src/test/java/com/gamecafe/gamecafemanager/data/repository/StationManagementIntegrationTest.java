@@ -2,6 +2,7 @@ package com.gamecafe.gamecafemanager.data.repository;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -50,24 +51,28 @@ class StationManagementIntegrationTest {
     }
 
     @Test
-    void createsUpdatesListsAndDisablesStation() {
+    void createsUpdatesListsAndDisablesPlayStationWithModePrices() {
         Station created = createStation.execute(
                 " Room 1 ",
                 StationType.PLAYSTATION,
-                new BigDecimal("125.5"));
+                new BigDecimal("125.5"),
+                new BigDecimal("160"));
 
         assertTrue(created.getId() > 0);
         assertEquals("Room 1", created.getName());
-        assertEquals(new BigDecimal("125.50"), created.getHourlyRate());
+        assertEquals(new BigDecimal("125.50"), created.getSingleHourlyRate());
+        assertEquals(new BigDecimal("160.00"), created.getMultiHourlyRate());
         assertTrue(created.isEnabled());
 
         Station updated = updateStation.execute(
                 created.getId(),
                 "VIP Room",
                 StationType.PLAYSTATION,
-                new BigDecimal("200.00"));
+                new BigDecimal("200.00"),
+                new BigDecimal("250.00"));
         assertEquals("VIP Room", updated.getName());
-        assertEquals(new BigDecimal("200.00"), updated.getHourlyRate());
+        assertEquals(new BigDecimal("200.00"), updated.getSingleHourlyRate());
+        assertEquals(new BigDecimal("250.00"), updated.getMultiHourlyRate());
 
         setStationEnabled.execute(created.getId(), false);
         List<Station> storedStations = getStations.execute();
@@ -75,6 +80,32 @@ class StationManagementIntegrationTest {
         assertEquals(1, storedStations.size());
         assertEquals("VIP Room", storedStations.get(0).getName());
         assertFalse(storedStations.get(0).isEnabled());
+    }
+
+    @Test
+    void createsPingPongWithSingleAndMultiPrices() {
+        Station created = createStation.execute(
+                "Ping Pong 1",
+                StationType.PING_PONG,
+                new BigDecimal("40.00"),
+                new BigDecimal("60.00"));
+
+        Station stored = getStations.execute().get(0);
+        assertEquals(created.getId(), stored.getId());
+        assertEquals(StationType.PING_PONG, stored.getType());
+        assertEquals(new BigDecimal("40.00"), stored.getSingleHourlyRate());
+        assertEquals(new BigDecimal("60.00"), stored.getMultiHourlyRate());
+    }
+
+    @Test
+    void billiardContinuesUsingOneHourlyRate() {
+        Station created = createStation.execute(
+                "Billiard 1",
+                StationType.BILLIARD,
+                new BigDecimal("80.00"));
+
+        assertEquals(new BigDecimal("80.00"), created.getHourlyRate());
+        assertNull(created.getMultiHourlyRate());
     }
 
     @Test

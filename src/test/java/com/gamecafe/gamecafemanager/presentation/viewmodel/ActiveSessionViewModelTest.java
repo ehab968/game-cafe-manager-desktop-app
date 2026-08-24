@@ -3,6 +3,7 @@ package com.gamecafe.gamecafemanager.presentation.viewmodel;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.gamecafe.gamecafemanager.domain.model.Session;
+import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.ApplicationSettings;
 import com.gamecafe.gamecafemanager.domain.model.SessionStatus;
 import com.gamecafe.gamecafemanager.domain.model.StationType;
@@ -61,6 +62,7 @@ class ActiveSessionViewModelTest {
                 7L,
                 "PlayStation Room 1",
                 StationType.PLAYSTATION,
+                SessionMode.SINGLE,
                 START_TIME,
                 null,
                 SessionStatus.ACTIVE,

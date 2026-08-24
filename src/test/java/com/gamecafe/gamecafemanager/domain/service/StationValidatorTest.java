@@ -17,7 +17,8 @@ class StationValidatorTest {
         assertDoesNotThrow(() -> validator.validate(
                 "PlayStation Room 1",
                 StationType.PLAYSTATION,
-                new BigDecimal("125.50")));
+                new BigDecimal("125.50"),
+                new BigDecimal("160.00")));
     }
 
     @Test
@@ -37,10 +38,36 @@ class StationValidatorTest {
     }
 
     @Test
-    void rejectsNonPositiveHourlyPrice() {
+    void acceptsZeroModePrices() {
+        assertDoesNotThrow(() -> validator.validate(
+                "Table 1",
+                StationType.PING_PONG,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO));
+    }
+
+    @Test
+    void rejectsNegativeModePrice() {
         assertThrows(ValidationException.class, () -> validator.validate(
                 "Table 1",
                 StationType.PING_PONG,
+                BigDecimal.ZERO,
+                new BigDecimal("-1.00")));
+    }
+
+    @Test
+    void requiresBothPricesForModeCapableStation() {
+        assertThrows(ValidationException.class, () -> validator.validate(
+                "Room 1",
+                StationType.PLAYSTATION,
+                new BigDecimal("60.00")));
+    }
+
+    @Test
+    void billiardStillRequiresPositiveHourlyPrice() {
+        assertThrows(ValidationException.class, () -> validator.validate(
+                "Billiard 1",
+                StationType.BILLIARD,
                 BigDecimal.ZERO));
     }
 
@@ -49,6 +76,7 @@ class StationValidatorTest {
         assertThrows(ValidationException.class, () -> validator.validate(
                 "Table 1",
                 StationType.PING_PONG,
-                new BigDecimal("10.001")));
+                new BigDecimal("10.001"),
+                new BigDecimal("20.00")));
     }
 }
