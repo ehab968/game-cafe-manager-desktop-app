@@ -75,6 +75,7 @@ import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.image.Image;
 import javafx.stage.Stage;
 
 /**
@@ -86,6 +87,8 @@ public class GameCafeApplication extends Application {
             "/com/gamecafe/gamecafemanager/presentation/view/login-view.fxml";
     private static final String MAIN_VIEW =
             "/com/gamecafe/gamecafemanager/presentation/view/main-view.fxml";
+    private static final String APPLICATION_ICON =
+            "/com/gamecafe/gamecafemanager/presentation/icon/game-cafe-manager.png";
 
     private Database database;
     private Stage primaryStage;
@@ -119,6 +122,8 @@ public class GameCafeApplication extends Application {
     @Override
     public void start(Stage stage) {
         primaryStage = stage;
+        primaryStage.getIcons().add(new Image(
+                GameCafeApplication.class.getResource(APPLICATION_ICON).toExternalForm()));
         errorHandler = new ApplicationErrorHandler(
                 new ApplicationErrorMapper(), this::applicationName);
         Thread.currentThread().setUncaughtExceptionHandler(
