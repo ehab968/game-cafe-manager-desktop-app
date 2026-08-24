@@ -14,6 +14,7 @@ public final class Session {
     private final long stationId;
     private final String stationNameSnapshot;
     private final StationType stationTypeSnapshot;
+    private final SessionMode mode;
     private final Instant startTime;
     private final Instant endTime;
     private final SessionStatus status;
@@ -27,6 +28,7 @@ public final class Session {
             long stationId,
             String stationNameSnapshot,
             StationType stationTypeSnapshot,
+            SessionMode mode,
             Instant startTime,
             Instant endTime,
             SessionStatus status,
@@ -40,6 +42,7 @@ public final class Session {
                 stationNameSnapshot, "stationNameSnapshot");
         this.stationTypeSnapshot = Objects.requireNonNull(
                 stationTypeSnapshot, "stationTypeSnapshot");
+        this.mode = mode;
         this.startTime = Objects.requireNonNull(startTime, "startTime");
         this.endTime = endTime;
         this.status = Objects.requireNonNull(status, "status");
@@ -64,6 +67,14 @@ public final class Session {
 
     public StationType getStationTypeSnapshot() {
         return stationTypeSnapshot;
+    }
+
+    /**
+     * Returns the selected mode, or null for Billiard and migrated legacy
+     * sessions whose original mode cannot be inferred.
+     */
+    public SessionMode getMode() {
+        return mode;
     }
 
     public Instant getStartTime() {

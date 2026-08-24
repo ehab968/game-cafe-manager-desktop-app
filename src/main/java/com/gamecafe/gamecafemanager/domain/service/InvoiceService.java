@@ -56,6 +56,8 @@ public final class InvoiceService {
                 session.getId(),
                 session.getStationNameSnapshot(),
                 session.getStationTypeSnapshot(),
+                session.getMode(),
+                session.getHourlyRateSnapshot(),
                 session.getStartTime(),
                 session.getEndTime(),
                 Duration.between(session.getStartTime(), session.getEndTime()),

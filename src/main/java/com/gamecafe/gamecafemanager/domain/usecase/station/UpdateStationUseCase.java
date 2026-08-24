@@ -27,8 +27,26 @@ public final class UpdateStationUseCase {
     }
 
     public Station execute(long id, String name, StationType type, BigDecimal hourlyRate) {
+        return executeInternal(id, name, type, hourlyRate, null);
+    }
+
+    public Station execute(
+            long id,
+            String name,
+            StationType type,
+            BigDecimal singleHourlyRate,
+            BigDecimal multiHourlyRate) {
+        return executeInternal(id, name, type, singleHourlyRate, multiHourlyRate);
+    }
+
+    private Station executeInternal(
+            long id,
+            String name,
+            StationType type,
+            BigDecimal primaryHourlyRate,
+            BigDecimal multiHourlyRate) {
         authorization.require(Permission.MANAGE_STATIONS);
-        validator.validate(name, type, hourlyRate);
+        validator.validate(name, type, primaryHourlyRate, multiHourlyRate);
         Station existing = repository.findById(id)
                 .orElseThrow(() -> new StationNotFoundException(id));
         String normalizedName = validator.normalizeName(name);
@@ -37,11 +55,21 @@ public final class UpdateStationUseCase {
             throw ValidationException.forField("name", "A station with this name already exists");
         }
 
-        return repository.update(new Station(
-                id,
-                normalizedName,
-                type,
-                validator.normalizeHourlyRate(hourlyRate),
-                existing.isEnabled()));
+        BigDecimal normalizedPrimaryRate = validator.normalizeHourlyRate(primaryHourlyRate);
+        Station station = type.supportsSessionModes()
+                ? new Station(
+                        id,
+                        normalizedName,
+                        type,
+                        normalizedPrimaryRate,
+                        validator.normalizeHourlyRate(multiHourlyRate),
+                        existing.isEnabled())
+                : new Station(
+                        id,
+                        normalizedName,
+                        type,
+                        normalizedPrimaryRate,
+                        existing.isEnabled());
+        return repository.update(station);
     }
 }

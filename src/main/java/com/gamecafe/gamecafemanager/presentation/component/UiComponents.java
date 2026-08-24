@@ -89,12 +89,14 @@ public final class UiComponents {
         String normalized = status == null
                 ? ""
                 : status.trim().toUpperCase(Locale.ROOT);
+        if (normalized.startsWith("RUNNING")) {
+            return "status-positive";
+        }
         switch (normalized) {
             case "ACTIVE":
             case "AVAILABLE":
             case "COMPLETED":
             case "ENABLED":
-            case "RUNNING":
                 return "status-positive";
             case "CANCELLED":
                 return "status-negative";

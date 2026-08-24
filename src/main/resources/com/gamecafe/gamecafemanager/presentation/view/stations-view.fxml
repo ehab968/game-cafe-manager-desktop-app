@@ -24,7 +24,7 @@
         <columns>
             <TableColumn fx:id="nameColumn" text="Name" />
             <TableColumn fx:id="typeColumn" text="Type" />
-            <TableColumn fx:id="hourlyRateColumn" text="Hourly Price" />
+            <TableColumn fx:id="hourlyRateColumn" text="Pricing" />
             <TableColumn fx:id="statusColumn" text="Status" />
         </columns>
     </TableView>

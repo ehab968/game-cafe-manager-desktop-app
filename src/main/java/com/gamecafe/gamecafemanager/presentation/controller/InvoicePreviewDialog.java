@@ -48,13 +48,24 @@ public final class InvoicePreviewDialog {
         details.addRow(3, new Label("Station"), new Label(invoice.getStationName()));
         details.addRow(4, new Label("Station type"),
                 new Label(invoice.getStationType().getDisplayName()));
-        details.addRow(5, new Label("Start time"),
+        int detailRow = 5;
+        if (invoice.getMode() != null) {
+            details.addRow(
+                    detailRow++,
+                    new Label("Mode"),
+                    new Label(invoice.getMode().getDisplayName()));
+        }
+        details.addRow(
+                detailRow++,
+                new Label("Hourly rate"),
+                new Label(formatMoney(invoice, invoice.getHourlyRateSnapshot()) + "/hour"));
+        details.addRow(detailRow++, new Label("Start time"),
                 new Label(TIME_FORMAT.format(invoice.getStartTime())));
-        details.addRow(6, new Label("End time"),
+        details.addRow(detailRow++, new Label("End time"),
                 new Label(TIME_FORMAT.format(invoice.getEndTime())));
-        details.addRow(7, new Label("Duration"),
+        details.addRow(detailRow++, new Label("Duration"),
                 new Label(formatDuration(invoice.getDuration())));
-        details.addRow(8, new Label("Gaming amount"),
+        details.addRow(detailRow, new Label("Gaming amount"),
                 new Label(formatMoney(invoice, invoice.getGamingAmount())));
 
         VBox productLines = new VBox(6.0);

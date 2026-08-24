@@ -1,6 +1,7 @@
 package com.gamecafe.gamecafemanager.presentation.viewmodel;
 
 import com.gamecafe.gamecafemanager.domain.model.Session;
+import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.Station;
 import com.gamecafe.gamecafemanager.domain.service.PricingService;
 import com.gamecafe.gamecafemanager.presentation.format.ApplicationDisplayService;
@@ -62,7 +63,9 @@ public final class DashboardStationViewModel {
 
     public String getStatusText() {
         if (isActive()) {
-            return "Running";
+            return activeSession.getMode() == null
+                    ? "Running"
+                    : "Running — " + activeSession.getMode().getDisplayName();
         }
         return station.isEnabled() ? "Available" : "Disabled";
     }
@@ -73,6 +76,22 @@ public final class DashboardStationViewModel {
 
     public boolean canStart() {
         return station.isEnabled() && !isActive();
+    }
+
+    public boolean supportsSessionModes() {
+        return station.getType().supportsSessionModes();
+    }
+
+    public BigDecimal getSingleHourlyRate() {
+        return station.getSingleHourlyRate();
+    }
+
+    public BigDecimal getMultiHourlyRate() {
+        return station.getMultiHourlyRate();
+    }
+
+    public SessionMode getActiveSessionMode() {
+        return activeSession == null ? null : activeSession.getMode();
     }
 
     public long getActiveSessionId() {

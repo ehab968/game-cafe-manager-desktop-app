@@ -96,8 +96,7 @@ public class StationsController {
         typeColumn.setCellValueFactory(cell ->
                 new ReadOnlyStringWrapper(cell.getValue().getType().getDisplayName()));
         hourlyRateColumn.setCellValueFactory(cell ->
-                new ReadOnlyStringWrapper(
-                        displayService.formatMoney(cell.getValue().getHourlyRate())));
+                new ReadOnlyStringWrapper(formatStationPricing(cell.getValue())));
         statusColumn.setCellValueFactory(cell ->
                 new ReadOnlyStringWrapper(statusText(cell.getValue())));
         statusColumn.setCellFactory(UiComponents.statusCellFactory());
@@ -152,9 +151,16 @@ public class StationsController {
                 FXCollections.observableArrayList(StationType.values()));
         typeField.setMaxWidth(Double.MAX_VALUE);
         typeField.setValue(creating ? StationType.PLAYSTATION : existing.getType());
-        TextField hourlyRateField = new TextField(
+        TextField primaryRateField = new TextField(
                 creating ? "" : existing.getHourlyRate().toPlainString());
-        hourlyRateField.setPromptText("0.00");
+        primaryRateField.setPromptText("0.00");
+        TextField multiRateField = new TextField(
+                creating || !existing.getType().supportsSessionModes()
+                        ? ""
+                        : existing.getMultiHourlyRate().toPlainString());
+        multiRateField.setPromptText("0.00");
+        Label primaryRateLabel = new Label();
+        Label multiRateLabel = new Label("Multi hourly price");
 
         GridPane form = new GridPane();
         form.setHgap(12.0);
@@ -162,7 +168,13 @@ public class StationsController {
         form.setPadding(new Insets(8.0, 0.0, 0.0, 0.0));
         form.addRow(0, new Label("Name"), nameField);
         form.addRow(1, new Label("Type"), typeField);
-        form.addRow(2, new Label("Hourly price"), hourlyRateField);
+        form.addRow(2, primaryRateLabel, primaryRateField);
+        form.addRow(3, multiRateLabel, multiRateField);
+        updatePricingFields(
+                typeField.getValue(), primaryRateLabel, multiRateLabel, multiRateField);
+        typeField.valueProperty().addListener((observable, previous, selected) ->
+                updatePricingFields(
+                        selected, primaryRateLabel, multiRateLabel, multiRateField));
         dialog.getDialogPane().setContent(form);
 
         ButtonType saveButtonType = new ButtonType(
@@ -175,15 +187,40 @@ public class StationsController {
 
         saveButton.addEventFilter(ActionEvent.ACTION, event -> {
             try {
-                BigDecimal hourlyRate = parseHourlyRate(hourlyRateField.getText());
-                if (creating) {
-                    createStationUseCase.execute(nameField.getText(), typeField.getValue(), hourlyRate);
+                StationType selectedType = typeField.getValue();
+                BigDecimal primaryRate = parseHourlyRate(
+                        primaryRateField.getText(),
+                        selectedType != null && selectedType.supportsSessionModes()
+                                ? "singleHourlyRate"
+                                : "hourlyRate",
+                        selectedType != null && selectedType.supportsSessionModes()
+                                ? "Single hourly price"
+                                : "Hourly price");
+                if (selectedType != null && selectedType.supportsSessionModes()) {
+                    BigDecimal multiRate = parseHourlyRate(
+                            multiRateField.getText(),
+                            "multiHourlyRate",
+                            "Multi hourly price");
+                    if (creating) {
+                        createStationUseCase.execute(
+                                nameField.getText(), selectedType, primaryRate, multiRate);
+                    } else {
+                        updateStationUseCase.execute(
+                                existing.getId(),
+                                nameField.getText(),
+                                selectedType,
+                                primaryRate,
+                                multiRate);
+                    }
+                } else if (creating) {
+                    createStationUseCase.execute(
+                            nameField.getText(), selectedType, primaryRate);
                 } else {
                     updateStationUseCase.execute(
                             existing.getId(),
                             nameField.getText(),
-                            typeField.getValue(),
-                            hourlyRate);
+                            selectedType,
+                            primaryRate);
                 }
                 saved[0] = true;
             } catch (ValidationException exception) {
@@ -201,12 +238,33 @@ public class StationsController {
         }
     }
 
-    private BigDecimal parseHourlyRate(String value) {
+    private BigDecimal parseHourlyRate(String value, String field, String label) {
         try {
             return new BigDecimal(value == null ? "" : value.trim());
         } catch (NumberFormatException exception) {
-            throw ValidationException.forField("hourlyRate", "Enter a valid hourly price");
+            throw ValidationException.forField(field, "Enter a valid " + label.toLowerCase());
         }
+    }
+
+    private void updatePricingFields(
+            StationType type,
+            Label primaryRateLabel,
+            Label multiRateLabel,
+            TextField multiRateField) {
+        boolean modesSupported = type != null && type.supportsSessionModes();
+        primaryRateLabel.setText(modesSupported ? "Single hourly price" : "Hourly price");
+        multiRateLabel.setVisible(modesSupported);
+        multiRateLabel.setManaged(modesSupported);
+        multiRateField.setVisible(modesSupported);
+        multiRateField.setManaged(modesSupported);
+    }
+
+    private String formatStationPricing(Station station) {
+        if (!station.getType().supportsSessionModes()) {
+            return displayService.formatMoney(station.getHourlyRate());
+        }
+        return "Single " + displayService.formatMoney(station.getSingleHourlyRate())
+                + " / Multi " + displayService.formatMoney(station.getMultiHourlyRate());
     }
 
     public void refresh() {

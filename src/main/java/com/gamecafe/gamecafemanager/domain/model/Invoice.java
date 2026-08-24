@@ -21,6 +21,8 @@ public final class Invoice {
     private final long sessionId;
     private final String stationName;
     private final StationType stationType;
+    private final SessionMode mode;
+    private final BigDecimal hourlyRateSnapshot;
     private final Instant startTime;
     private final Instant endTime;
     private final Duration duration;
@@ -37,6 +39,8 @@ public final class Invoice {
             long sessionId,
             String stationName,
             StationType stationType,
+            SessionMode mode,
+            BigDecimal hourlyRateSnapshot,
             Instant startTime,
             Instant endTime,
             Duration duration,
@@ -51,6 +55,9 @@ public final class Invoice {
         this.sessionId = sessionId;
         this.stationName = Objects.requireNonNull(stationName, "stationName");
         this.stationType = Objects.requireNonNull(stationType, "stationType");
+        this.mode = mode;
+        this.hourlyRateSnapshot = Objects.requireNonNull(
+                hourlyRateSnapshot, "hourlyRateSnapshot");
         this.startTime = Objects.requireNonNull(startTime, "startTime");
         this.endTime = Objects.requireNonNull(endTime, "endTime");
         this.duration = Objects.requireNonNull(duration, "duration");
@@ -88,6 +95,14 @@ public final class Invoice {
 
     public StationType getStationType() {
         return stationType;
+    }
+
+    public SessionMode getMode() {
+        return mode;
+    }
+
+    public BigDecimal getHourlyRateSnapshot() {
+        return hourlyRateSnapshot;
     }
 
     public Instant getStartTime() {

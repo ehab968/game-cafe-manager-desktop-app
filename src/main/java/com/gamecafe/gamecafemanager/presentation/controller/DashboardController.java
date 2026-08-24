@@ -5,6 +5,7 @@ import com.gamecafe.gamecafemanager.domain.model.Product;
 import com.gamecafe.gamecafemanager.domain.model.CheckoutSummary;
 import com.gamecafe.gamecafemanager.domain.model.Invoice;
 import com.gamecafe.gamecafemanager.domain.model.Session;
+import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.SessionProduct;
 import com.gamecafe.gamecafemanager.domain.model.Station;
 import com.gamecafe.gamecafemanager.domain.service.PricingService;
@@ -30,6 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -233,11 +235,48 @@ public class DashboardController {
 
     private void startSession(DashboardStationViewModel card) {
         try {
-            startSessionUseCase.execute(card.getStationId());
+            if (card.supportsSessionModes()) {
+                Optional<SessionMode> selectedMode = showSessionModeDialog(card);
+                if (!selectedMode.isPresent()) {
+                    return;
+                }
+                startSessionUseCase.execute(card.getStationId(), selectedMode.get());
+            } else {
+                startSessionUseCase.execute(card.getStationId());
+            }
             reloadDashboard();
         } catch (RuntimeException exception) {
             showError("Could not start session", exception);
         }
+    }
+
+    private Optional<SessionMode> showSessionModeDialog(DashboardStationViewModel card) {
+        Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
+        UiStyles.apply(dialog.getDialogPane());
+        dialog.setTitle("Start session");
+        dialog.setHeaderText("Choose a mode for " + card.getStationName());
+        dialog.setContentText("The selected rate will be captured for this session.");
+        dialog.initOwner(stationCardsPane.getScene().getWindow());
+
+        ButtonType singleType = new ButtonType(
+                "Single — " + displayService.formatMoney(card.getSingleHourlyRate()),
+                ButtonBar.ButtonData.OK_DONE);
+        ButtonType multiType = new ButtonType(
+                "Multi — " + displayService.formatMoney(card.getMultiHourlyRate()),
+                ButtonBar.ButtonData.OTHER);
+        dialog.getButtonTypes().setAll(singleType, multiType, ButtonType.CANCEL);
+        ((Button) dialog.getDialogPane().lookupButton(singleType))
+                .getStyleClass().add("primary-button");
+
+        return dialog.showAndWait().flatMap(selected -> {
+            if (selected.equals(singleType)) {
+                return Optional.of(SessionMode.SINGLE);
+            }
+            if (selected.equals(multiType)) {
+                return Optional.of(SessionMode.MULTI);
+            }
+            return Optional.empty();
+        });
     }
 
     private void finishSession(DashboardStationViewModel card) {
@@ -271,14 +310,25 @@ public class DashboardController {
         GridPane details = new GridPane();
         details.setHgap(18.0);
         details.setVgap(8.0);
-        details.addRow(0, new Label("Station"), new Label(checkout.getStationName()));
-        details.addRow(1, new Label("Start time"),
+        int detailRow = 0;
+        details.addRow(detailRow++, new Label("Station"), new Label(checkout.getStationName()));
+        if (checkout.getMode() != null) {
+            details.addRow(
+                    detailRow++,
+                    new Label("Mode"),
+                    new Label(checkout.getMode().getDisplayName()));
+        }
+        details.addRow(
+                detailRow++,
+                new Label("Hourly rate"),
+                new Label(displayService.formatMoney(checkout.getHourlyRateSnapshot()) + "/hour"));
+        details.addRow(detailRow++, new Label("Start time"),
                 new Label(CHECKOUT_TIME_FORMAT.format(checkout.getStartTime())));
-        details.addRow(2, new Label("End time"),
+        details.addRow(detailRow++, new Label("End time"),
                 new Label(CHECKOUT_TIME_FORMAT.format(checkout.getEndTime())));
-        details.addRow(3, new Label("Duration"),
+        details.addRow(detailRow++, new Label("Duration"),
                 new Label(formatDuration(checkout.getDuration())));
-        details.addRow(4, new Label("Gaming cost"),
+        details.addRow(detailRow, new Label("Gaming cost"),
                 new Label(displayService.formatMoney(checkout.getGamingCost())));
 
         VBox productLines = new VBox(6.0);

@@ -27,7 +27,8 @@ public final class SQLiteStationRepository implements StationRepository {
 
     private static final int MONEY_SCALE = 2;
     private static final String SELECT_COLUMNS =
-            "id, name, type, hourly_rate_minor, active";
+            "id, name, type, hourly_rate_minor, single_hourly_rate_minor, "
+                    + "multi_hourly_rate_minor, active";
 
     private final Database database;
 
@@ -37,8 +38,9 @@ public final class SQLiteStationRepository implements StationRepository {
 
     @Override
     public Station create(Station station) {
-        String sql = "INSERT INTO stations(name, type, hourly_rate_minor, active) "
-                + "VALUES (?, ?, ?, ?)";
+        String sql = "INSERT INTO stations(name, type, hourly_rate_minor, "
+                + "single_hourly_rate_minor, multi_hourly_rate_minor, active) "
+                + "VALUES (?, ?, ?, ?, ?, ?)";
 
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(
@@ -50,12 +52,7 @@ public final class SQLiteStationRepository implements StationRepository {
                 if (!generatedKeys.next()) {
                     throw new SQLException("Station insert did not return an id");
                 }
-                return new Station(
-                        generatedKeys.getLong(1),
-                        station.getName(),
-                        station.getType(),
-                        station.getHourlyRate(),
-                        station.isEnabled());
+                return copyWithId(station, generatedKeys.getLong(1));
             }
         } catch (SQLException exception) {
             throw new DatabaseException("Could not create station", exception);
@@ -69,13 +66,14 @@ public final class SQLiteStationRepository implements StationRepository {
         }
 
         String sql = "UPDATE stations SET name = ?, type = ?, hourly_rate_minor = ?, "
-                + "active = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
+                + "single_hourly_rate_minor = ?, multi_hourly_rate_minor = ?, active = ?, "
+                + "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
                 + "WHERE id = ?";
 
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             bindStation(statement, station);
-            statement.setLong(5, station.getId());
+            statement.setLong(7, station.getId());
             if (statement.executeUpdate() == 0) {
                 throw new StationNotFoundException(station.getId());
             }
@@ -181,21 +179,72 @@ public final class SQLiteStationRepository implements StationRepository {
         statement.setString(1, station.getName());
         statement.setString(2, station.getType().name());
         statement.setLong(3, toMinorUnits(station.getHourlyRate()));
-        statement.setInt(4, station.isEnabled() ? 1 : 0);
+        if (station.getType().supportsSessionModes()) {
+            statement.setLong(4, toMinorUnits(station.getSingleHourlyRate()));
+            statement.setLong(5, toMinorUnits(station.getMultiHourlyRate()));
+        } else {
+            statement.setObject(4, null);
+            statement.setObject(5, null);
+        }
+        statement.setInt(6, station.isEnabled() ? 1 : 0);
     }
 
     private Station mapStation(ResultSet resultSet) throws SQLException {
+        StationType type = StationType.valueOf(resultSet.getString("type"));
+        BigDecimal legacyRate = fromMinorUnits(resultSet.getLong("hourly_rate_minor"));
+        if (!type.supportsSessionModes()) {
+            return new Station(
+                    resultSet.getLong("id"),
+                    resultSet.getString("name"),
+                    type,
+                    legacyRate,
+                    resultSet.getInt("active") == 1);
+        }
+        BigDecimal singleRate = nullableMinorUnits(
+                resultSet, "single_hourly_rate_minor", legacyRate);
+        BigDecimal multiRate = nullableMinorUnits(
+                resultSet, "multi_hourly_rate_minor", legacyRate);
         return new Station(
                 resultSet.getLong("id"),
                 resultSet.getString("name"),
-                StationType.valueOf(resultSet.getString("type")),
-                BigDecimal.valueOf(resultSet.getLong("hourly_rate_minor"), MONEY_SCALE),
+                type,
+                singleRate,
+                multiRate,
                 resultSet.getInt("active") == 1);
+    }
+
+    private Station copyWithId(Station station, long id) {
+        return station.getType().supportsSessionModes()
+                ? new Station(
+                        id,
+                        station.getName(),
+                        station.getType(),
+                        station.getSingleHourlyRate(),
+                        station.getMultiHourlyRate(),
+                        station.isEnabled())
+                : new Station(
+                        id,
+                        station.getName(),
+                        station.getType(),
+                        station.getHourlyRate(),
+                        station.isEnabled());
+    }
+
+    private BigDecimal nullableMinorUnits(
+            ResultSet resultSet,
+            String column,
+            BigDecimal fallback) throws SQLException {
+        long value = resultSet.getLong(column);
+        return resultSet.wasNull() ? fallback : fromMinorUnits(value);
     }
 
     private long toMinorUnits(BigDecimal value) {
         return value.setScale(MONEY_SCALE, RoundingMode.UNNECESSARY)
                 .movePointRight(MONEY_SCALE)
                 .longValueExact();
+    }
+
+    private BigDecimal fromMinorUnits(long value) {
+        return BigDecimal.valueOf(value, MONEY_SCALE);
     }
 }

@@ -62,6 +62,7 @@ public final class FinishSessionUseCase {
                 activeSession.getStationId(),
                 activeSession.getStationNameSnapshot(),
                 activeSession.getStationTypeSnapshot(),
+                activeSession.getMode(),
                 activeSession.getStartTime(),
                 endTime,
                 SessionStatus.COMPLETED,

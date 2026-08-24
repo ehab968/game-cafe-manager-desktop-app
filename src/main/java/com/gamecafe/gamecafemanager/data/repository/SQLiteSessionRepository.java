@@ -7,6 +7,7 @@ import com.gamecafe.gamecafemanager.domain.exception.DuplicateCheckoutException;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotActiveException;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotFoundException;
 import com.gamecafe.gamecafemanager.domain.model.Session;
+import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.SessionStatus;
 import com.gamecafe.gamecafemanager.domain.model.StationType;
 import com.gamecafe.gamecafemanager.domain.repository.SessionRepository;
@@ -31,7 +32,8 @@ public final class SQLiteSessionRepository implements SessionRepository {
 
     private static final int MONEY_SCALE = 2;
     private static final String SELECT_COLUMNS =
-            "id, station_id, station_name, station_type, station_rate_minor, start_time, end_time, "
+            "id, station_id, station_name, station_type, session_mode, station_rate_minor, "
+                    + "start_time, end_time, "
                     + "status, station_total_minor, products_total_minor, final_total_minor";
 
     private final Database database;
@@ -43,10 +45,10 @@ public final class SQLiteSessionRepository implements SessionRepository {
     @Override
     public Session create(Session session) {
         String sql = "INSERT INTO sessions("
-                + "station_id, station_name, station_type, station_rate_minor, "
+                + "station_id, station_name, station_type, session_mode, station_rate_minor, "
                 + "start_time, end_time, status, "
                 + "station_total_minor, products_total_minor, final_total_minor) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(
@@ -54,13 +56,16 @@ public final class SQLiteSessionRepository implements SessionRepository {
             statement.setLong(1, session.getStationId());
             statement.setString(2, session.getStationNameSnapshot());
             statement.setString(3, session.getStationTypeSnapshot().name());
-            statement.setLong(4, toMinorUnits(session.getHourlyRateSnapshot()));
-            statement.setString(5, session.getStartTime().toString());
-            statement.setString(6, null);
-            statement.setString(7, session.getStatus().name());
-            statement.setLong(8, toMinorUnits(session.getPlayCost()));
-            statement.setLong(9, toMinorUnits(session.getProductsCost()));
-            statement.setLong(10, toMinorUnits(session.getFinalTotal()));
+            statement.setString(4, session.getMode() == null
+                    ? null
+                    : session.getMode().name());
+            statement.setLong(5, toMinorUnits(session.getHourlyRateSnapshot()));
+            statement.setString(6, session.getStartTime().toString());
+            statement.setString(7, null);
+            statement.setString(8, session.getStatus().name());
+            statement.setLong(9, toMinorUnits(session.getPlayCost()));
+            statement.setLong(10, toMinorUnits(session.getProductsCost()));
+            statement.setLong(11, toMinorUnits(session.getFinalTotal()));
             statement.executeUpdate();
 
             try (ResultSet keys = statement.getGeneratedKeys()) {
@@ -101,6 +106,7 @@ public final class SQLiteSessionRepository implements SessionRepository {
                     completedSession.getStationId(),
                     completedSession.getStationNameSnapshot(),
                     completedSession.getStationTypeSnapshot(),
+                    completedSession.getMode(),
                     completedSession.getStartTime(),
                     completedSession.getEndTime(),
                     completedSession.getStatus(),
@@ -164,11 +170,13 @@ public final class SQLiteSessionRepository implements SessionRepository {
 
     private Session mapSession(ResultSet resultSet) throws SQLException {
         String endTime = resultSet.getString("end_time");
+        String mode = resultSet.getString("session_mode");
         return new Session(
                 resultSet.getLong("id"),
                 resultSet.getLong("station_id"),
                 resultSet.getString("station_name"),
                 StationType.valueOf(resultSet.getString("station_type")),
+                mode == null ? null : SessionMode.valueOf(mode),
                 Instant.parse(resultSet.getString("start_time")),
                 endTime == null ? null : Instant.parse(endTime),
                 SessionStatus.valueOf(resultSet.getString("status")),
@@ -250,6 +258,7 @@ public final class SQLiteSessionRepository implements SessionRepository {
                 session.getStationId(),
                 session.getStationNameSnapshot(),
                 session.getStationTypeSnapshot(),
+                session.getMode(),
                 session.getStartTime(),
                 session.getEndTime(),
                 session.getStatus(),

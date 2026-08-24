@@ -57,6 +57,9 @@ public final class CheckoutService {
         return new CheckoutSummary(
                 session.getId(),
                 session.getStationNameSnapshot(),
+                session.getStationTypeSnapshot(),
+                session.getMode(),
+                session.getHourlyRateSnapshot(),
                 session.getStartTime(),
                 endTime,
                 pricing.getElapsedDuration(),
