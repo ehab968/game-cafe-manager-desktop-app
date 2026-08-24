@@ -1,4 +1,6 @@
 /target/
+/release/
+/.build-tools/
 
 *.db-shm
 *.db-wal
