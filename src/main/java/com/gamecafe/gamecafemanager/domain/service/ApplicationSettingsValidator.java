@@ -2,6 +2,7 @@ package com.gamecafe.gamecafemanager.domain.service;
 
 import com.gamecafe.gamecafemanager.core.validation.ValidationException;
 import com.gamecafe.gamecafemanager.domain.model.ApplicationSettings;
+import com.gamecafe.gamecafemanager.domain.model.ReceiptPrintSettings;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -11,6 +12,7 @@ public final class ApplicationSettingsValidator {
     private static final int MAXIMUM_CAFE_NAME_LENGTH = 100;
     private static final int MAXIMUM_CURRENCY_DISPLAY_LENGTH = 12;
     private static final int MAXIMUM_INVOICE_FOOTER_LENGTH = 500;
+    private static final int MAXIMUM_PRINTER_NAME_LENGTH = 255;
     private static final int MAXIMUM_DURATION_MINUTES = 1_440;
 
     public ApplicationSettings validateAndNormalize(ApplicationSettings settings) {
@@ -18,6 +20,8 @@ public final class ApplicationSettingsValidator {
         String cafeName = settings.getCafeName().trim();
         String currencyDisplay = settings.getCurrencyDisplay().trim();
         String invoiceFooter = settings.getInvoiceFooter().trim();
+        ReceiptPrintSettings printSettings = settings.getReceiptPrintSettings();
+        String printerName = printSettings.getSelectedPrinterName();
         Map<String, String> errors = new LinkedHashMap<>();
 
         if (cafeName.isEmpty()) {
@@ -43,6 +47,14 @@ public final class ApplicationSettingsValidator {
                 "Billing rounding interval",
                 settings.getBillingRoundingMinutes(),
                 errors);
+        if (printerName != null && printerName.length() > MAXIMUM_PRINTER_NAME_LENGTH) {
+            errors.put("receiptPrinter", "Printer name must not exceed 255 characters");
+        }
+        if (printSettings.isAutoPrintAfterCheckout() && printerName == null) {
+            errors.put(
+                    "autoPrintAfterCheckout",
+                    "Select a receipt printer before enabling automatic printing");
+        }
 
         if (!errors.isEmpty()) {
             throw new ValidationException(errors);
@@ -52,7 +64,11 @@ public final class ApplicationSettingsValidator {
                 currencyDisplay,
                 invoiceFooter,
                 settings.getMinimumSessionMinutes(),
-                settings.getBillingRoundingMinutes());
+                settings.getBillingRoundingMinutes(),
+                new ReceiptPrintSettings(
+                        printerName,
+                        printSettings.getPaperWidth(),
+                        printSettings.isAutoPrintAfterCheckout()));
     }
 
     private void validateOptionalMinutes(

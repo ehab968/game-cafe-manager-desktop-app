@@ -3,6 +3,8 @@ package com.gamecafe.gamecafemanager.data.repository;
 import com.gamecafe.gamecafemanager.core.database.Database;
 import com.gamecafe.gamecafemanager.core.database.DatabaseException;
 import com.gamecafe.gamecafemanager.domain.model.ApplicationSettings;
+import com.gamecafe.gamecafemanager.domain.model.ReceiptPaperWidth;
+import com.gamecafe.gamecafemanager.domain.model.ReceiptPrintSettings;
 import com.gamecafe.gamecafemanager.domain.repository.SettingsRepository;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -32,6 +34,8 @@ public final class SQLiteSettingsRepository implements SettingsRepository {
         String sql = "UPDATE application_settings SET cafe_name = ?, "
                 + "currency_display = ?, invoice_footer = ?, "
                 + "minimum_session_minutes = ?, billing_rounding_minutes = ?, "
+                + "receipt_printer_name = ?, receipt_paper_width_mm = ?, "
+                + "auto_print_receipt = ?, "
                 + "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = 1";
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -50,8 +54,9 @@ public final class SQLiteSettingsRepository implements SettingsRepository {
             ApplicationSettings defaults) throws SQLException {
         String sql = "INSERT OR IGNORE INTO application_settings("
                 + "id, cafe_name, currency_display, invoice_footer, "
-                + "minimum_session_minutes, billing_rounding_minutes) "
-                + "VALUES (1, ?, ?, ?, ?, ?)";
+                + "minimum_session_minutes, billing_rounding_minutes, "
+                + "receipt_printer_name, receipt_paper_width_mm, auto_print_receipt) "
+                + "VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             bindSettings(statement, defaults);
             statement.executeUpdate();
@@ -60,7 +65,8 @@ public final class SQLiteSettingsRepository implements SettingsRepository {
 
     private ApplicationSettings load(Connection connection) throws SQLException {
         String sql = "SELECT cafe_name, currency_display, invoice_footer, "
-                + "minimum_session_minutes, billing_rounding_minutes "
+                + "minimum_session_minutes, billing_rounding_minutes, "
+                + "receipt_printer_name, receipt_paper_width_mm, auto_print_receipt "
                 + "FROM application_settings WHERE id = 1";
         try (PreparedStatement statement = connection.prepareStatement(sql);
                 ResultSet resultSet = statement.executeQuery()) {
@@ -72,7 +78,12 @@ public final class SQLiteSettingsRepository implements SettingsRepository {
                     resultSet.getString("currency_display"),
                     resultSet.getString("invoice_footer"),
                     nullableInteger(resultSet, "minimum_session_minutes"),
-                    nullableInteger(resultSet, "billing_rounding_minutes"));
+                    nullableInteger(resultSet, "billing_rounding_minutes"),
+                    new ReceiptPrintSettings(
+                            resultSet.getString("receipt_printer_name"),
+                            ReceiptPaperWidth.fromMillimeters(
+                                    resultSet.getInt("receipt_paper_width_mm")),
+                            resultSet.getInt("auto_print_receipt") == 1));
         }
     }
 
@@ -84,6 +95,14 @@ public final class SQLiteSettingsRepository implements SettingsRepository {
         statement.setString(3, settings.getInvoiceFooter());
         bindNullableInteger(statement, 4, settings.getMinimumSessionMinutes());
         bindNullableInteger(statement, 5, settings.getBillingRoundingMinutes());
+        ReceiptPrintSettings printSettings = settings.getReceiptPrintSettings();
+        if (printSettings.getSelectedPrinterName() == null) {
+            statement.setNull(6, java.sql.Types.VARCHAR);
+        } else {
+            statement.setString(6, printSettings.getSelectedPrinterName());
+        }
+        statement.setInt(7, printSettings.getPaperWidth().getMillimeters());
+        statement.setInt(8, printSettings.isAutoPrintAfterCheckout() ? 1 : 0);
     }
 
     private void bindNullableInteger(
