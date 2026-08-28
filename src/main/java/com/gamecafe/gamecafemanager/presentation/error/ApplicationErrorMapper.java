@@ -9,6 +9,7 @@ import com.gamecafe.gamecafemanager.domain.exception.InsufficientStockException;
 import com.gamecafe.gamecafemanager.domain.exception.InvalidCredentialsException;
 import com.gamecafe.gamecafemanager.domain.exception.ProductDisabledException;
 import com.gamecafe.gamecafemanager.domain.exception.ProductNotFoundException;
+import com.gamecafe.gamecafemanager.domain.exception.PrinterDiscoveryException;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotActiveException;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotCompletedException;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotFoundException;
@@ -42,6 +43,13 @@ public final class ApplicationErrorMapper {
                     "Database unavailable",
                     "The application could not access its data. Check that the database "
                             + "location is available, then try again.");
+        }
+        if (exception instanceof PrinterDiscoveryException) {
+            return error(
+                    ApplicationErrorType.PRINTING,
+                    "Printers unavailable",
+                    "Windows printer information could not be loaded. Check Windows printer "
+                            + "settings and try again.");
         }
         if (exception instanceof ActiveSessionAlreadyExistsException) {
             return error(
@@ -137,6 +145,7 @@ public final class ApplicationErrorMapper {
     private boolean isKnown(Throwable exception) {
         return exception instanceof ValidationException
                 || exception instanceof DatabaseException
+                || exception instanceof PrinterDiscoveryException
                 || exception instanceof ActiveSessionAlreadyExistsException
                 || exception instanceof StationDisabledException
                 || exception instanceof StationInUseException

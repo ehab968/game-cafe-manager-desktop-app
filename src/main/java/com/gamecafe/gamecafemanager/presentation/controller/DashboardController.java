@@ -4,11 +4,14 @@ import com.gamecafe.gamecafemanager.core.validation.ValidationException;
 import com.gamecafe.gamecafemanager.domain.model.Product;
 import com.gamecafe.gamecafemanager.domain.model.CheckoutSummary;
 import com.gamecafe.gamecafemanager.domain.model.Invoice;
+import com.gamecafe.gamecafemanager.domain.model.ReceiptPrintResult;
+import com.gamecafe.gamecafemanager.domain.model.ReceiptPrintStatus;
 import com.gamecafe.gamecafemanager.domain.model.Session;
 import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.SessionProduct;
 import com.gamecafe.gamecafemanager.domain.model.Station;
 import com.gamecafe.gamecafemanager.domain.service.PricingService;
+import com.gamecafe.gamecafemanager.domain.service.printing.ReceiptPrintingService;
 import com.gamecafe.gamecafemanager.domain.usecase.session.FinishSessionUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.session.GetActiveSessionsUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.session.PrepareCheckoutUseCase;
@@ -76,6 +79,7 @@ public class DashboardController {
     private final GetProductsUseCase getProductsUseCase;
     private final AddProductToSessionUseCase addProductToSessionUseCase;
     private final GenerateInvoiceUseCase generateInvoiceUseCase;
+    private final ReceiptPrintingService receiptPrintingService;
     private final PricingService pricingService;
     private final ApplicationDisplayService displayService;
     private final ApplicationErrorHandler errorHandler;
@@ -96,6 +100,7 @@ public class DashboardController {
             GetProductsUseCase getProductsUseCase,
             AddProductToSessionUseCase addProductToSessionUseCase,
             GenerateInvoiceUseCase generateInvoiceUseCase,
+            ReceiptPrintingService receiptPrintingService,
             PricingService pricingService,
             ApplicationDisplayService displayService,
             ApplicationErrorHandler errorHandler,
@@ -114,6 +119,8 @@ public class DashboardController {
                 addProductToSessionUseCase, "addProductToSessionUseCase");
         this.generateInvoiceUseCase = Objects.requireNonNull(
                 generateInvoiceUseCase, "generateInvoiceUseCase");
+        this.receiptPrintingService = Objects.requireNonNull(
+                receiptPrintingService, "receiptPrintingService");
         this.pricingService = Objects.requireNonNull(pricingService, "pricingService");
         this.displayService = Objects.requireNonNull(displayService, "displayService");
         this.errorHandler = Objects.requireNonNull(errorHandler, "errorHandler");
@@ -291,15 +298,28 @@ public class DashboardController {
                 Session completed = finishSessionUseCase.execute(
                         checkout.getSessionId(), checkout.getEndTime());
                 Invoice invoice = generateInvoiceUseCase.execute(completed.getId());
+                ReceiptPrintResult autoPrintResult = attemptAutoPrint(invoice);
                 reloadDashboard();
-                new InvoicePreviewDialog().show(
+                new InvoicePreviewDialog(receiptPrintingService, errorHandler).show(
                         invoice,
                         stationCardsPane.getScene() == null
                                 ? null
-                                : stationCardsPane.getScene().getWindow());
+                                : stationCardsPane.getScene().getWindow(),
+                        autoPrintResult);
             }
         } catch (RuntimeException exception) {
             showError("Could not finish session", exception);
+        }
+    }
+
+    private ReceiptPrintResult attemptAutoPrint(Invoice invoice) {
+        try {
+            return receiptPrintingService.autoPrint(invoice);
+        } catch (RuntimeException exception) {
+            errorHandler.handle(exception, "Automatic receipt printing failed");
+            return ReceiptPrintResult.of(
+                    ReceiptPrintStatus.FAILED,
+                    "Receipt printing could not be started. Check Printing settings and retry.");
         }
     }
 

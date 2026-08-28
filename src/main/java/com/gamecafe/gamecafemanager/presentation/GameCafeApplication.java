@@ -8,6 +8,7 @@ import com.gamecafe.gamecafemanager.data.repository.SQLiteSessionRepository;
 import com.gamecafe.gamecafemanager.data.repository.SQLiteSettingsRepository;
 import com.gamecafe.gamecafemanager.data.repository.SQLiteStationRepository;
 import com.gamecafe.gamecafemanager.data.repository.SQLiteUserRepository;
+import com.gamecafe.gamecafemanager.data.printing.JavaPrintServiceReceiptPrinter;
 import com.gamecafe.gamecafemanager.data.security.Pbkdf2PasswordHasher;
 import com.gamecafe.gamecafemanager.data.sqlite.SQLiteDatabase;
 import com.gamecafe.gamecafemanager.domain.model.ApplicationSettings;
@@ -30,6 +31,8 @@ import com.gamecafe.gamecafemanager.domain.service.PricingService;
 import com.gamecafe.gamecafemanager.domain.service.ProductValidator;
 import com.gamecafe.gamecafemanager.domain.service.StationValidator;
 import com.gamecafe.gamecafemanager.domain.service.UserValidator;
+import com.gamecafe.gamecafemanager.domain.service.printing.ReceiptPrintingService;
+import com.gamecafe.gamecafemanager.domain.service.printing.ReceiptRenderer;
 import com.gamecafe.gamecafemanager.domain.service.pricing.GamingPricePolicy;
 import com.gamecafe.gamecafemanager.domain.service.pricing.MonetaryRoundingPolicy;
 import com.gamecafe.gamecafemanager.domain.service.pricing.SettingsBillableDurationPolicy;
@@ -112,6 +115,7 @@ public class GameCafeApplication extends Application {
     private PricingService pricingService;
     private CheckoutService checkoutService;
     private InvoiceService invoiceService;
+    private ReceiptPrintingService receiptPrintingService;
     private Clock clock;
 
     @Override
@@ -166,6 +170,10 @@ public class GameCafeApplication extends Application {
                 MonetaryRoundingPolicy.standardCurrency());
         checkoutService = new CheckoutService(pricingService);
         invoiceService = new InvoiceService(settingsService);
+        receiptPrintingService = new ReceiptPrintingService(
+                settingsService,
+                new ReceiptRenderer(),
+                new JavaPrintServiceReceiptPrinter());
         clock = Clock.systemUTC();
     }
 
@@ -226,6 +234,7 @@ public class GameCafeApplication extends Application {
                         sessionProductRepository,
                         invoiceService,
                         authorizationService),
+                receiptPrintingService,
                 new GetReportUseCase(
                         reportRepository,
                         authorizationService,

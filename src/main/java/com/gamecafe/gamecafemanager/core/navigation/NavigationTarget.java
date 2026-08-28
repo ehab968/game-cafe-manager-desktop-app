@@ -27,7 +27,7 @@ public enum NavigationTarget {
             "Review completed-session revenue and usage."),
     SETTINGS(
             "Settings",
-            "Configure cafe branding, invoices, and session billing."),
+            "Configure cafe branding, invoices, session billing, and receipt printing."),
     ACTIVE_SESSIONS(
             "Active Sessions",
             "Monitor persisted sessions and their current elapsed time."),

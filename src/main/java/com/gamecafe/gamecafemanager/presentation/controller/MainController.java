@@ -5,6 +5,7 @@ import com.gamecafe.gamecafemanager.domain.model.Permission;
 import com.gamecafe.gamecafemanager.domain.model.User;
 import com.gamecafe.gamecafemanager.domain.service.AuthorizationService;
 import com.gamecafe.gamecafemanager.domain.service.PricingService;
+import com.gamecafe.gamecafemanager.domain.service.printing.ReceiptPrintingService;
 import com.gamecafe.gamecafemanager.domain.usecase.product.CreateProductUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.GetProductsUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.SetProductEnabledUseCase;
@@ -78,6 +79,7 @@ public class MainController {
     private final PrepareCheckoutUseCase prepareCheckoutUseCase;
     private final AddProductToSessionUseCase addProductToSessionUseCase;
     private final GenerateInvoiceUseCase generateInvoiceUseCase;
+    private final ReceiptPrintingService receiptPrintingService;
     private final GetReportUseCase getReportUseCase;
     private final GetSettingsUseCase getSettingsUseCase;
     private final UpdateSettingsUseCase updateSettingsUseCase;
@@ -152,6 +154,7 @@ public class MainController {
             PrepareCheckoutUseCase prepareCheckoutUseCase,
             AddProductToSessionUseCase addProductToSessionUseCase,
             GenerateInvoiceUseCase generateInvoiceUseCase,
+            ReceiptPrintingService receiptPrintingService,
             GetReportUseCase getReportUseCase,
             GetSettingsUseCase getSettingsUseCase,
             UpdateSettingsUseCase updateSettingsUseCase,
@@ -195,6 +198,8 @@ public class MainController {
                 addProductToSessionUseCase, "addProductToSessionUseCase");
         this.generateInvoiceUseCase = Objects.requireNonNull(
                 generateInvoiceUseCase, "generateInvoiceUseCase");
+        this.receiptPrintingService = Objects.requireNonNull(
+                receiptPrintingService, "receiptPrintingService");
         this.getReportUseCase = Objects.requireNonNull(getReportUseCase, "getReportUseCase");
         this.getSettingsUseCase = Objects.requireNonNull(getSettingsUseCase, "getSettingsUseCase");
         this.updateSettingsUseCase = Objects.requireNonNull(
@@ -535,6 +540,7 @@ public class MainController {
         settingsController = new SettingsController(
                 getSettingsUseCase,
                 updateSettingsUseCase,
+                receiptPrintingService,
                 errorHandler,
                 this::settingsChanged);
         loader.setController(settingsController);
@@ -610,6 +616,7 @@ public class MainController {
                 getProductsUseCase,
                 addProductToSessionUseCase,
                 generateInvoiceUseCase,
+                receiptPrintingService,
                 pricingService,
                 displayService,
                 errorHandler,

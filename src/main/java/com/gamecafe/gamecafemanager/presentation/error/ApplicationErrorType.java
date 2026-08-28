@@ -6,6 +6,7 @@ package com.gamecafe.gamecafemanager.presentation.error;
 public enum ApplicationErrorType {
     VALIDATION,
     DATABASE,
+    PRINTING,
     CONFLICT,
     AUTHORIZATION,
     NOT_FOUND,
