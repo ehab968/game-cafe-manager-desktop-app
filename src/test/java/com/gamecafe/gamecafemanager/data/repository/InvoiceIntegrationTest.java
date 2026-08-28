@@ -9,6 +9,12 @@ import com.gamecafe.gamecafemanager.domain.exception.SessionNotCompletedExceptio
 import com.gamecafe.gamecafemanager.domain.model.Invoice;
 import com.gamecafe.gamecafemanager.domain.model.ApplicationSettings;
 import com.gamecafe.gamecafemanager.domain.model.Product;
+import com.gamecafe.gamecafemanager.domain.model.ReceiptDocument;
+import com.gamecafe.gamecafemanager.domain.model.ReceiptPaperWidth;
+import com.gamecafe.gamecafemanager.domain.model.ReceiptPrintMode;
+import com.gamecafe.gamecafemanager.domain.model.ReceiptPrintResult;
+import com.gamecafe.gamecafemanager.domain.model.ReceiptPrintSettings;
+import com.gamecafe.gamecafemanager.domain.model.ReceiptPrintStatus;
 import com.gamecafe.gamecafemanager.domain.model.Session;
 import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.Station;
@@ -23,6 +29,9 @@ import com.gamecafe.gamecafemanager.domain.service.InvoiceService;
 import com.gamecafe.gamecafemanager.domain.service.PricingService;
 import com.gamecafe.gamecafemanager.domain.service.ProductValidator;
 import com.gamecafe.gamecafemanager.domain.service.StationValidator;
+import com.gamecafe.gamecafemanager.domain.service.printing.ReceiptPrinter;
+import com.gamecafe.gamecafemanager.domain.service.printing.ReceiptPrintingService;
+import com.gamecafe.gamecafemanager.domain.service.printing.ReceiptRenderer;
 import com.gamecafe.gamecafemanager.domain.usecase.invoice.GenerateInvoiceUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.CreateProductUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.UpdateProductUseCase;
@@ -39,6 +48,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Locale;
+import java.util.Collections;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -176,7 +187,68 @@ class InvoiceIntegrationTest {
                 generateInvoice.execute(activeSession.getId()));
     }
 
+    @Test
+    void printFailureAndRepeatedReprintDoNotChangeCompletedBusinessData() {
+        Session completed = new FinishSessionUseCase(
+                sessionRepository,
+                sessionProductRepository,
+                new CheckoutService(new PricingService()),
+                fixedClock(END_TIME),
+                authorization).execute(activeSession.getId());
+        Invoice invoice = generateInvoice.execute(completed.getId());
+        FailingPrinter printer = new FailingPrinter();
+        ReceiptPrintingService printing = new ReceiptPrintingService(
+                () -> new ApplicationSettings(
+                        "Pixel Hub",
+                        "USD",
+                        "Thanks",
+                        null,
+                        null,
+                        new ReceiptPrintSettings(
+                                "Test Printer", ReceiptPaperWidth.MM_80, true)),
+                new ReceiptRenderer(ZoneOffset.UTC),
+                printer);
+
+        ReceiptPrintResult firstAttempt = printing.autoPrint(invoice);
+        ReceiptPrintResult reprintAttempt = printing.printConfigured(invoice);
+
+        assertEquals(ReceiptPrintStatus.FAILED, firstAttempt.getStatus());
+        assertEquals(ReceiptPrintStatus.FAILED, reprintAttempt.getStatus());
+        assertEquals(2, printer.printCount);
+        Session reloaded = sessionRepository.findById(completed.getId())
+                .orElseThrow(AssertionError::new);
+        Product reloadedProduct = productRepository.findById(product.getId())
+                .orElseThrow(AssertionError::new);
+        assertEquals(completed.getStatus(), reloaded.getStatus());
+        assertEquals(completed.getEndTime(), reloaded.getEndTime());
+        assertEquals(completed.getPlayCost(), reloaded.getPlayCost());
+        assertEquals(completed.getProductsCost(), reloaded.getProductsCost());
+        assertEquals(completed.getFinalTotal(), reloaded.getFinalTotal());
+        assertEquals(8, reloadedProduct.getStockQuantity());
+        assertEquals(1, sessionProductRepository.findBySessionId(completed.getId()).size());
+    }
+
     private Clock fixedClock(Instant instant) {
         return Clock.fixed(instant, ZoneOffset.UTC);
+    }
+
+    private static final class FailingPrinter implements ReceiptPrinter {
+
+        private int printCount;
+
+        @Override
+        public List<String> discoverPrinterNames() {
+            return Collections.singletonList("Test Printer");
+        }
+
+        @Override
+        public ReceiptPrintResult print(
+                ReceiptDocument receipt,
+                String printerName,
+                ReceiptPrintMode printMode) {
+            printCount++;
+            return ReceiptPrintResult.of(
+                    ReceiptPrintStatus.FAILED, "Simulated printer failure");
+        }
     }
 }

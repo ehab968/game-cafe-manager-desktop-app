@@ -45,7 +45,7 @@ class V11StationSessionModePricingMigrationTest {
         assertNull(legacySession.getMode());
         assertEquals(new BigDecimal("60.00"), legacySession.getHourlyRateSnapshot());
         assertEquals("2026-08-20T18:00:00Z", legacySession.getStartTime().toString());
-        assertEquals(11, queryForInt(
+        assertEquals(12, queryForInt(
                 database, "SELECT MAX(version) FROM schema_migrations"));
     }
 
@@ -84,6 +84,18 @@ class V11StationSessionModePricingMigrationTest {
                             + "station_total_minor, products_total_minor, final_total_minor) "
                             + "VALUES (10, 1, 'Legacy Room', 'PLAYSTATION', 6000, "
                             + "'2026-08-20T18:00:00Z', NULL, 'ACTIVE', 0, 0, 0)" );
+            statement.execute(
+                    "CREATE TABLE application_settings ("
+                            + "id INTEGER PRIMARY KEY CHECK (id = 1), "
+                            + "cafe_name TEXT NOT NULL, currency_display TEXT NOT NULL, "
+                            + "invoice_footer TEXT NOT NULL, minimum_session_minutes INTEGER, "
+                            + "billing_rounding_minutes INTEGER, updated_at TEXT NOT NULL)" );
+            statement.execute(
+                    "INSERT INTO application_settings(id, cafe_name, currency_display, "
+                            + "invoice_footer, minimum_session_minutes, "
+                            + "billing_rounding_minutes, updated_at) VALUES "
+                            + "(1, 'Legacy Cafe', 'EGP', 'Thanks', NULL, NULL, "
+                            + "'2026-08-20T18:00:00Z')" );
         }
     }
 

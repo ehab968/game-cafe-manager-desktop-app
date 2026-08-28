@@ -9,6 +9,8 @@ import com.gamecafe.gamecafemanager.data.sqlite.SQLiteDatabase;
 import com.gamecafe.gamecafemanager.domain.exception.AuthorizationException;
 import com.gamecafe.gamecafemanager.domain.model.ApplicationSettings;
 import com.gamecafe.gamecafemanager.domain.model.Role;
+import com.gamecafe.gamecafemanager.domain.model.ReceiptPaperWidth;
+import com.gamecafe.gamecafemanager.domain.model.ReceiptPrintSettings;
 import com.gamecafe.gamecafemanager.domain.repository.SettingsRepository;
 import com.gamecafe.gamecafemanager.domain.service.ApplicationSettingsService;
 import com.gamecafe.gamecafemanager.domain.service.ApplicationSettingsValidator;
@@ -66,13 +68,22 @@ class SettingsIntegrationTest {
         assertEquals("Thank you for visiting!", defaults.getInvoiceFooter());
         assertNull(defaults.getMinimumSessionMinutes());
         assertNull(defaults.getBillingRoundingMinutes());
+        assertNull(defaults.getReceiptPrintSettings().getSelectedPrinterName());
+        assertEquals(
+                ReceiptPaperWidth.MM_80,
+                defaults.getReceiptPrintSettings().getPaperWidth());
+        assertEquals(false, defaults.getReceiptPrintSettings().isAutoPrintAfterCheckout());
 
         ApplicationSettings saved = updateSettings.execute(new ApplicationSettings(
                 "  Pixel Hub  ",
                 " USD ",
                 "  Thanks for playing!  ",
                 30,
-                15));
+                15,
+                new ReceiptPrintSettings(
+                        " Microsoft Print to PDF ",
+                        ReceiptPaperWidth.MM_58,
+                        true)));
         assertEquals("Pixel Hub", saved.getCafeName());
         assertEquals("USD", saved.getCurrencyDisplay());
         assertEquals("Thanks for playing!", saved.getInvoiceFooter());
@@ -85,6 +96,13 @@ class SettingsIntegrationTest {
         assertEquals("Thanks for playing!", reconstructed.getInvoiceFooter());
         assertEquals(30, reconstructed.getMinimumSessionMinutes());
         assertEquals(15, reconstructed.getBillingRoundingMinutes());
+        assertEquals(
+                "Microsoft Print to PDF",
+                reconstructed.getReceiptPrintSettings().getSelectedPrinterName());
+        assertEquals(
+                ReceiptPaperWidth.MM_58,
+                reconstructed.getReceiptPrintSettings().getPaperWidth());
+        assertEquals(true, reconstructed.getReceiptPrintSettings().isAutoPrintAfterCheckout());
     }
 
     @Test
@@ -129,6 +147,14 @@ class SettingsIntegrationTest {
     void validatesSettingsAndDeniesCashierAtApplicationBoundary() {
         assertThrows(ValidationException.class, () -> updateSettings.execute(
                 new ApplicationSettings(" ", "", "Footer", 0, 1_441)));
+        assertThrows(ValidationException.class, () -> updateSettings.execute(
+                new ApplicationSettings(
+                        "Game Cafe",
+                        "EGP",
+                        "Footer",
+                        null,
+                        null,
+                        new ReceiptPrintSettings(null, ReceiptPaperWidth.MM_80, true))));
 
         SQLiteDatabase cashierDatabase = new SQLiteDatabase(
                 temporaryDirectory.resolve("cashier-settings.db"));

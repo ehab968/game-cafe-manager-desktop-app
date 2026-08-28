@@ -9,6 +9,7 @@ import com.gamecafe.gamecafemanager.core.validation.ValidationException;
 import com.gamecafe.gamecafemanager.domain.exception.ActiveSessionAlreadyExistsException;
 import com.gamecafe.gamecafemanager.domain.exception.DuplicateCheckoutException;
 import com.gamecafe.gamecafemanager.domain.exception.InsufficientStockException;
+import com.gamecafe.gamecafemanager.domain.exception.PrinterDiscoveryException;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotActiveException;
 import com.gamecafe.gamecafemanager.domain.exception.StationInUseException;
 import java.sql.SQLException;
@@ -77,5 +78,18 @@ class ApplicationErrorMapperTest {
         assertEquals(ApplicationErrorType.UNEXPECTED, error.getType());
         assertEquals("Could not save station", error.getTitle());
         assertFalse(error.getMessage().contains("secret"));
+    }
+
+    @Test
+    void printerDiscoveryFailureUsesSafePrinterGuidance() {
+        UserFacingError error = mapper.map(
+                new PrinterDiscoveryException(
+                        "spooler internals", new IllegalStateException("secret device path")),
+                "Could not discover printers");
+
+        assertEquals(ApplicationErrorType.PRINTING, error.getType());
+        assertEquals("Printers unavailable", error.getTitle());
+        assertFalse(error.getMessage().contains("secret"));
+        assertFalse(error.getMessage().contains("spooler"));
     }
 }
