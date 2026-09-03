@@ -8,7 +8,7 @@ Java, JavaFX, Maven, NetBeans, SQLite, or any development tool.
 ## Release configuration
 
 - Application name: `GameCafeManager`
-- Application version: `1.0.0` (read from `pom.xml`)
+- Application version: `1.2.0` (read from `pom.xml`)
 - Vendor: `Ehab Salah`
 - Main module: `com.gamecafe.gamecafemanager`
 - Main class: `com.gamecafe.gamecafemanager.presentation.GameCafeApplication`
@@ -20,6 +20,19 @@ Java, JavaFX, Maven, NetBeans, SQLite, or any development tool.
 The release keeps the existing Java 11 bytecode target, JavaFX 13, and SQLite JDBC
 3.53.2.1. The build JDK can be newer because its `jpackage`/`jlink` tools create the
 private runtime that ships with the application.
+
+Version 1.2.0 uses the same application name, per-user install location, and Windows
+upgrade UUID as version 1.0.0. Installing it over 1.0.0 upgrades the application while
+leaving the database under the user's `.game-cafe-manager` directory untouched. On
+first launch, the ordered database migrations preserve existing data while adding:
+
+- V11: Single/Multi station rates and session-mode snapshots. Existing PlayStation
+  and Ping Pong hourly rates are copied safely into both new rate columns.
+- V12: receipt-printer settings with 80mm and auto-print-off defaults.
+- V13: standalone product-sale history.
+- V14: gaming-discount snapshots. Existing sessions remain 0% transactions, their
+  net gaming amount is copied from the historic gaming amount, and final totals are
+  not rewritten.
 
 ## Build-computer prerequisites
 
@@ -120,18 +133,23 @@ Use a spare Windows computer or a fresh Windows virtual machine snapshot:
 2. Copy only `GameCafeManager-Setup.exe` from the USB drive to the machine.
 3. Run the installer and accept the default per-user installation location.
 4. Launch the desktop shortcut and create the initial administrator.
-5. Create a station, edit its hourly rate, create a product, and update its price and
-   stock.
-6. Start a session, wait briefly, and confirm that elapsed time and current gaming
-   cost update.
-7. Add the product, confirm stock decreases, finish the session, confirm checkout,
-   and open the invoice preview.
-8. Close and reopen the application. Confirm the station, product, completed session,
+5. Create a PlayStation or Ping Pong station, set its Single and Multi hourly rates,
+   create a product, and update its price and stock.
+6. Start the station, choose Single or Multi, wait briefly, and confirm that elapsed
+   time and current gaming cost use the selected rate. Confirm that Billiard still
+   starts without a mode selection.
+7. Add the product, finish the session, select a gaming discount, and confirm that
+   products are unchanged while only gaming is discounted. Complete checkout and
+   open the invoice preview.
+8. In Settings, select an installed Windows printer, verify both 80mm and 58mm
+   receipt previews, and test manual and automatic printing. A print failure must
+   leave the completed checkout and invoice intact.
+9. Close and reopen the application. Confirm the station, product, completed session,
    invoice data, reports, settings, and remembered login still exist.
-9. Start another session, note its start time, close the application while it remains
+10. Start another session, note its start time, close the application while it remains
    ACTIVE, wait at least one minute, and reopen it. Confirm the same session is active
    and its elapsed time includes the period while the application was closed.
-10. Uninstall from Windows **Installed apps**, reinstall the same installer, and verify
+11. Uninstall from Windows **Installed apps**, reinstall the same installer, and verify
     the per-user database is still available. Delete the `.game-cafe-manager` folder
     only if a deliberate full data reset is required.
 
