@@ -9,6 +9,7 @@ public enum Role {
     CASHIER(EnumSet.of(
             Permission.OPERATE_SESSIONS,
             Permission.ADD_SESSION_PRODUCTS,
+            Permission.SELL_PRODUCTS,
             Permission.CHECKOUT));
 
     private final Set<Permission> permissions;

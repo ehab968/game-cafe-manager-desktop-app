@@ -31,7 +31,9 @@ final class SQLiteSchemaMigrator {
                     new V9ApplicationSettingsMigration(),
                     new V10RememberedAuthenticationMigration(),
                     new V11StationSessionModePricingMigration(),
-                    new V12ReceiptPrintingSettingsMigration());
+                    new V12ReceiptPrintingSettingsMigration(),
+                    new V13StandaloneProductSalesMigration(),
+                    new V14GamingDiscountMigration());
 
     void migrate(Connection connection) throws SQLException {
         createMigrationsTable(connection);

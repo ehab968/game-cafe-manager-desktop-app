@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.gamecafe.gamecafemanager.domain.model.Invoice;
+import com.gamecafe.gamecafemanager.domain.model.GamingDiscount;
 import com.gamecafe.gamecafemanager.domain.model.InvoiceItem;
 import com.gamecafe.gamecafemanager.domain.model.ReceiptDocument;
 import com.gamecafe.gamecafemanager.domain.model.ReceiptLine;
@@ -117,6 +118,39 @@ class ReceiptRendererTest {
         assertContains(receipt, "Rate: 80.00 EGP/hour");
     }
 
+    @Test
+    void rendersPersistedDiscountBreakdownAtBothPaperWidths() {
+        Invoice discounted = discountedInvoice();
+
+        ReceiptDocument eighty = renderer.render(discounted, ReceiptPaperWidth.MM_80);
+        ReceiptDocument fiftyEight = renderer.render(
+                discounted, ReceiptPaperWidth.MM_58);
+
+        for (ReceiptDocument receipt : new ReceiptDocument[]{eighty, fiftyEight}) {
+            assertContains(receipt, "Gaming");
+            assertContains(receipt, "200.00 EGP");
+            assertContains(receipt, "Discount 20%");
+            assertContains(receipt, "-40.00 EGP");
+            assertContains(receipt, "Gaming after discount");
+            assertContains(receipt, "160.00 EGP");
+            assertContains(receipt, "Products");
+            assertContains(receipt, "50.00 EGP");
+            assertContains(receipt, "210.00 EGP");
+        }
+        assertAllLinesFit(eighty, 42);
+        assertAllLinesFit(fiftyEight, 32);
+    }
+
+    @Test
+    void noDiscountReceiptKeepsExistingCleanLayout() {
+        ReceiptDocument receipt = renderer.render(
+                invoice(StationType.BILLIARD, null, "Billiard 1"),
+                ReceiptPaperWidth.MM_80);
+
+        assertFalse(receipt.asPlainText().contains("Discount"));
+        assertFalse(receipt.asPlainText().contains("Gaming after discount"));
+    }
+
     private Invoice invoice(StationType type, SessionMode mode, String stationName) {
         List<InvoiceItem> items = Collections.singletonList(new InvoiceItem(
                 7L,
@@ -141,6 +175,35 @@ class ReceiptRendererTest {
                 items,
                 new BigDecimal("50.00"),
                 new BigDecimal("87.13"));
+    }
+
+    private Invoice discountedInvoice() {
+        List<InvoiceItem> items = Collections.singletonList(new InvoiceItem(
+                7L,
+                "Pepsi",
+                new BigDecimal("25.00"),
+                2,
+                new BigDecimal("50.00")));
+        return new Invoice(
+                "Circle Game",
+                "EGP",
+                "Thank You",
+                "INV-000124",
+                124L,
+                "PS5 Room 1",
+                StationType.PLAYSTATION,
+                SessionMode.MULTI,
+                new BigDecimal("80.00"),
+                START,
+                END,
+                Duration.between(START, END),
+                new BigDecimal("200.00"),
+                GamingDiscount.TWENTY_PERCENT,
+                new BigDecimal("40.00"),
+                new BigDecimal("160.00"),
+                items,
+                new BigDecimal("50.00"),
+                new BigDecimal("210.00"));
     }
 
     private void assertAllLinesFit(ReceiptDocument receipt, int columns) {

@@ -100,7 +100,7 @@ public final class ApplicationErrorMapper {
             return error(
                     ApplicationErrorType.CONFLICT,
                     "Product unavailable",
-                    "This product is disabled and cannot be added to a session.");
+                    "This product is disabled and cannot be sold or added to a session.");
         }
         if (exception instanceof AuthorizationException) {
             return error(

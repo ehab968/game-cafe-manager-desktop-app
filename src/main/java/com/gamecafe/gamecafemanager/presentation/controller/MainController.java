@@ -9,6 +9,7 @@ import com.gamecafe.gamecafemanager.domain.service.printing.ReceiptPrintingServi
 import com.gamecafe.gamecafemanager.domain.usecase.product.CreateProductUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.GetProductsUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.SetProductEnabledUseCase;
+import com.gamecafe.gamecafemanager.domain.usecase.product.SellProductUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.UpdateProductStockUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.UpdateProductUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.invoice.GenerateInvoiceUseCase;
@@ -78,6 +79,7 @@ public class MainController {
     private final FinishSessionUseCase finishSessionUseCase;
     private final PrepareCheckoutUseCase prepareCheckoutUseCase;
     private final AddProductToSessionUseCase addProductToSessionUseCase;
+    private final SellProductUseCase sellProductUseCase;
     private final GenerateInvoiceUseCase generateInvoiceUseCase;
     private final ReceiptPrintingService receiptPrintingService;
     private final GetReportUseCase getReportUseCase;
@@ -153,6 +155,7 @@ public class MainController {
             FinishSessionUseCase finishSessionUseCase,
             PrepareCheckoutUseCase prepareCheckoutUseCase,
             AddProductToSessionUseCase addProductToSessionUseCase,
+            SellProductUseCase sellProductUseCase,
             GenerateInvoiceUseCase generateInvoiceUseCase,
             ReceiptPrintingService receiptPrintingService,
             GetReportUseCase getReportUseCase,
@@ -196,6 +199,8 @@ public class MainController {
                 prepareCheckoutUseCase, "prepareCheckoutUseCase");
         this.addProductToSessionUseCase = Objects.requireNonNull(
                 addProductToSessionUseCase, "addProductToSessionUseCase");
+        this.sellProductUseCase = Objects.requireNonNull(
+                sellProductUseCase, "sellProductUseCase");
         this.generateInvoiceUseCase = Objects.requireNonNull(
                 generateInvoiceUseCase, "generateInvoiceUseCase");
         this.receiptPrintingService = Objects.requireNonNull(
@@ -615,6 +620,7 @@ public class MainController {
                 prepareCheckoutUseCase,
                 getProductsUseCase,
                 addProductToSessionUseCase,
+                sellProductUseCase,
                 generateInvoiceUseCase,
                 receiptPrintingService,
                 pricingService,

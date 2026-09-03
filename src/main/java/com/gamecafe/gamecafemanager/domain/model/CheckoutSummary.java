@@ -22,6 +22,9 @@ public final class CheckoutSummary {
     private final Instant endTime;
     private final Duration duration;
     private final BigDecimal gamingCost;
+    private final GamingDiscount gamingDiscount;
+    private final BigDecimal gamingDiscountAmount;
+    private final BigDecimal discountedGamingCost;
     private final List<SessionProduct> purchasedProducts;
     private final BigDecimal productsTotal;
     private final BigDecimal finalTotal;
@@ -39,6 +42,40 @@ public final class CheckoutSummary {
             List<SessionProduct> purchasedProducts,
             BigDecimal productsTotal,
             BigDecimal finalTotal) {
+        this(
+                sessionId,
+                stationName,
+                stationType,
+                mode,
+                hourlyRateSnapshot,
+                startTime,
+                endTime,
+                duration,
+                gamingCost,
+                GamingDiscount.NONE,
+                BigDecimal.ZERO.setScale(2),
+                gamingCost,
+                purchasedProducts,
+                productsTotal,
+                finalTotal);
+    }
+
+    public CheckoutSummary(
+            long sessionId,
+            String stationName,
+            StationType stationType,
+            SessionMode mode,
+            BigDecimal hourlyRateSnapshot,
+            Instant startTime,
+            Instant endTime,
+            Duration duration,
+            BigDecimal gamingCost,
+            GamingDiscount gamingDiscount,
+            BigDecimal gamingDiscountAmount,
+            BigDecimal discountedGamingCost,
+            List<SessionProduct> purchasedProducts,
+            BigDecimal productsTotal,
+            BigDecimal finalTotal) {
         this.sessionId = sessionId;
         this.stationName = Objects.requireNonNull(stationName, "stationName");
         this.stationType = Objects.requireNonNull(stationType, "stationType");
@@ -49,6 +86,11 @@ public final class CheckoutSummary {
         this.endTime = Objects.requireNonNull(endTime, "endTime");
         this.duration = Objects.requireNonNull(duration, "duration");
         this.gamingCost = Objects.requireNonNull(gamingCost, "gamingCost");
+        this.gamingDiscount = Objects.requireNonNull(gamingDiscount, "gamingDiscount");
+        this.gamingDiscountAmount = Objects.requireNonNull(
+                gamingDiscountAmount, "gamingDiscountAmount");
+        this.discountedGamingCost = Objects.requireNonNull(
+                discountedGamingCost, "discountedGamingCost");
         this.purchasedProducts = Collections.unmodifiableList(
                 new ArrayList<>(Objects.requireNonNull(
                         purchasedProducts, "purchasedProducts")));
@@ -90,6 +132,18 @@ public final class CheckoutSummary {
 
     public BigDecimal getGamingCost() {
         return gamingCost;
+    }
+
+    public GamingDiscount getGamingDiscount() {
+        return gamingDiscount;
+    }
+
+    public BigDecimal getGamingDiscountAmount() {
+        return gamingDiscountAmount;
+    }
+
+    public BigDecimal getDiscountedGamingCost() {
+        return discountedGamingCost;
     }
 
     public List<SessionProduct> getPurchasedProducts() {

@@ -66,6 +66,20 @@ public final class ReceiptRenderer {
                 formatMoney(invoice.getGamingAmount(), invoice),
                 columns,
                 false);
+        if (invoice.getGamingDiscount().isApplied()) {
+            addAmountLine(
+                    lines,
+                    "Discount " + invoice.getGamingDiscount().getPercentage() + "%",
+                    "-" + formatMoney(invoice.getGamingDiscountAmount(), invoice),
+                    columns,
+                    false);
+            addAmountLine(
+                    lines,
+                    "Gaming after discount",
+                    formatMoney(invoice.getDiscountedGamingAmount(), invoice),
+                    columns,
+                    false);
+        }
 
         for (InvoiceItem item : invoice.getPurchasedProducts()) {
             addWrapped(

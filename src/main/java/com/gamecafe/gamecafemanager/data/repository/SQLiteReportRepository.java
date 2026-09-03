@@ -18,7 +18,8 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Builds reports exclusively from persisted completed-session snapshots.
+ * Builds reports exclusively from persisted completed-session and product-sale
+ * snapshots.
  */
 public final class SQLiteReportRepository implements ReportRepository {
 
@@ -30,13 +31,20 @@ public final class SQLiteReportRepository implements ReportRepository {
 
     private static final String SUMMARY_SQL =
             "SELECT COUNT(*) AS completed_sessions, "
-                    + "COALESCE(SUM(station_total_minor), 0) AS gaming_revenue_minor, "
+                    + "COALESCE(SUM(discounted_gaming_total_minor), 0) "
+                    + "AS gaming_revenue_minor, "
                     + "COALESCE(SUM(products_total_minor), 0) AS products_revenue_minor, "
                     + "COALESCE(SUM(final_total_minor), 0) AS total_revenue_minor, "
                     + "COALESCE(SUM(CAST(ROUND((julianday(end_time) "
                     + "- julianday(start_time)) * 86400.0) AS INTEGER)), 0) "
                     + "AS total_duration_seconds "
                     + "FROM sessions WHERE " + PERIOD_FILTER;
+
+    private static final String DIRECT_PRODUCT_REVENUE_SQL =
+            "SELECT COALESCE(SUM(line_total_minor), 0) AS revenue_minor "
+                    + "FROM product_sales WHERE "
+                    + "julianday(sold_at) >= julianday(?) "
+                    + "AND julianday(sold_at) < julianday(?)";
 
     private static final String STATION_USAGE_SQL =
             "WITH filtered_sessions AS ("
@@ -61,20 +69,28 @@ public final class SQLiteReportRepository implements ReportRepository {
                     + "latest.station_name COLLATE NOCASE";
 
     private static final String PRODUCT_SALES_SQL =
-            "WITH filtered_sessions AS ("
-                    + "SELECT id, end_time FROM sessions WHERE " + PERIOD_FILTER + "), "
-                    + "filtered_products AS ("
-                    + "SELECT items.id, items.product_id, items.product_name, items.quantity, "
-                    + "items.line_total_minor, sessions.end_time "
+            "WITH filtered_products AS ("
+                    + "SELECT 'SESSION' AS sale_source, items.id AS sale_id, "
+                    + "items.product_id, items.product_name, items.quantity, "
+                    + "items.line_total_minor, sessions.end_time AS sold_at "
                     + "FROM session_products items "
-                    + "JOIN filtered_sessions sessions ON sessions.id = items.session_id), "
+                    + "JOIN sessions ON sessions.id = items.session_id "
+                    + "WHERE sessions." + PERIOD_FILTER + " "
+                    + "UNION ALL "
+                    + "SELECT 'DIRECT' AS sale_source, sales.id AS sale_id, "
+                    + "sales.product_id, sales.product_name, sales.quantity, "
+                    + "sales.line_total_minor, sales.sold_at "
+                    + "FROM product_sales sales WHERE "
+                    + "julianday(sales.sold_at) >= julianday(?) "
+                    + "AND julianday(sales.sold_at) < julianday(?)), "
+                    + "ranked_products AS ("
+                    + "SELECT product_id, product_name, "
+                    + "ROW_NUMBER() OVER (PARTITION BY product_id "
+                    + "ORDER BY julianday(sold_at) DESC, sale_source DESC, sale_id DESC) "
+                    + "AS name_rank FROM filtered_products), "
                     + "latest_products AS ("
-                    + "SELECT current.product_id, current.product_name "
-                    + "FROM filtered_products current "
-                    + "WHERE current.id = ("
-                    + "SELECT recent.id FROM filtered_products recent "
-                    + "WHERE recent.product_id = current.product_id "
-                    + "ORDER BY julianday(recent.end_time) DESC, recent.id DESC LIMIT 1)) "
+                    + "SELECT product_id, product_name FROM ranked_products "
+                    + "WHERE name_rank = 1) "
                     + "SELECT items.product_id, latest.product_name, "
                     + "SUM(items.quantity) AS quantity_sold, "
                     + "SUM(items.line_total_minor) AS revenue_minor "
@@ -116,12 +132,35 @@ public final class SQLiteReportRepository implements ReportRepository {
                 if (!resultSet.next()) {
                     throw new SQLException("Could not calculate report summary");
                 }
+                long directProductRevenue = loadDirectProductRevenue(
+                        connection, period);
+                long productsRevenue = Math.addExact(
+                        resultSet.getLong("products_revenue_minor"),
+                        directProductRevenue);
+                long totalRevenue = Math.addExact(
+                        resultSet.getLong("total_revenue_minor"),
+                        directProductRevenue);
                 return new Summary(
                         resultSet.getLong("completed_sessions"),
                         resultSet.getLong("gaming_revenue_minor"),
-                        resultSet.getLong("products_revenue_minor"),
-                        resultSet.getLong("total_revenue_minor"),
+                        productsRevenue,
+                        totalRevenue,
                         resultSet.getLong("total_duration_seconds"));
+            }
+        }
+    }
+
+    private long loadDirectProductRevenue(
+            Connection connection,
+            ReportPeriod period) throws SQLException {
+        try (PreparedStatement statement = connection.prepareStatement(
+                DIRECT_PRODUCT_REVENUE_SQL)) {
+            bindPeriod(statement, period);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (!resultSet.next()) {
+                    throw new SQLException("Could not calculate direct product revenue");
+                }
+                return resultSet.getLong("revenue_minor");
             }
         }
     }
@@ -151,6 +190,7 @@ public final class SQLiteReportRepository implements ReportRepository {
         List<ProductSales> sales = new ArrayList<>();
         try (PreparedStatement statement = connection.prepareStatement(PRODUCT_SALES_SQL)) {
             bindPeriod(statement, period);
+            bindPeriod(statement, period, 3);
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
                     sales.add(new ProductSales(
@@ -165,8 +205,15 @@ public final class SQLiteReportRepository implements ReportRepository {
     }
 
     private void bindPeriod(PreparedStatement statement, ReportPeriod period) throws SQLException {
-        statement.setString(1, period.getStartInclusive().toString());
-        statement.setString(2, period.getEndExclusive().toString());
+        bindPeriod(statement, period, 1);
+    }
+
+    private void bindPeriod(
+            PreparedStatement statement,
+            ReportPeriod period,
+            int firstParameter) throws SQLException {
+        statement.setString(firstParameter, period.getStartInclusive().toString());
+        statement.setString(firstParameter + 1, period.getEndExclusive().toString());
     }
 
     private Duration averageDuration(long totalSeconds, long completedSessions) {

@@ -8,5 +8,6 @@ public enum Permission {
     MANAGE_SETTINGS,
     OPERATE_SESSIONS,
     ADD_SESSION_PRODUCTS,
+    SELL_PRODUCTS,
     CHECKOUT
 }

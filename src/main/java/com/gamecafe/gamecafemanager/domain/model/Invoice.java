@@ -27,6 +27,9 @@ public final class Invoice {
     private final Instant endTime;
     private final Duration duration;
     private final BigDecimal gamingAmount;
+    private final GamingDiscount gamingDiscount;
+    private final BigDecimal gamingDiscountAmount;
+    private final BigDecimal discountedGamingAmount;
     private final List<InvoiceItem> purchasedProducts;
     private final BigDecimal productsTotal;
     private final BigDecimal total;
@@ -48,6 +51,48 @@ public final class Invoice {
             List<InvoiceItem> purchasedProducts,
             BigDecimal productsTotal,
             BigDecimal total) {
+        this(
+                cafeName,
+                currencyDisplay,
+                footer,
+                invoiceNumber,
+                sessionId,
+                stationName,
+                stationType,
+                mode,
+                hourlyRateSnapshot,
+                startTime,
+                endTime,
+                duration,
+                gamingAmount,
+                GamingDiscount.NONE,
+                BigDecimal.ZERO.setScale(2),
+                gamingAmount,
+                purchasedProducts,
+                productsTotal,
+                total);
+    }
+
+    public Invoice(
+            String cafeName,
+            String currencyDisplay,
+            String footer,
+            String invoiceNumber,
+            long sessionId,
+            String stationName,
+            StationType stationType,
+            SessionMode mode,
+            BigDecimal hourlyRateSnapshot,
+            Instant startTime,
+            Instant endTime,
+            Duration duration,
+            BigDecimal gamingAmount,
+            GamingDiscount gamingDiscount,
+            BigDecimal gamingDiscountAmount,
+            BigDecimal discountedGamingAmount,
+            List<InvoiceItem> purchasedProducts,
+            BigDecimal productsTotal,
+            BigDecimal total) {
         this.cafeName = Objects.requireNonNull(cafeName, "cafeName");
         this.currencyDisplay = Objects.requireNonNull(currencyDisplay, "currencyDisplay");
         this.footer = Objects.requireNonNull(footer, "footer");
@@ -62,6 +107,11 @@ public final class Invoice {
         this.endTime = Objects.requireNonNull(endTime, "endTime");
         this.duration = Objects.requireNonNull(duration, "duration");
         this.gamingAmount = Objects.requireNonNull(gamingAmount, "gamingAmount");
+        this.gamingDiscount = Objects.requireNonNull(gamingDiscount, "gamingDiscount");
+        this.gamingDiscountAmount = Objects.requireNonNull(
+                gamingDiscountAmount, "gamingDiscountAmount");
+        this.discountedGamingAmount = Objects.requireNonNull(
+                discountedGamingAmount, "discountedGamingAmount");
         this.purchasedProducts = Collections.unmodifiableList(
                 new ArrayList<>(Objects.requireNonNull(
                         purchasedProducts, "purchasedProducts")));
@@ -119,6 +169,18 @@ public final class Invoice {
 
     public BigDecimal getGamingAmount() {
         return gamingAmount;
+    }
+
+    public GamingDiscount getGamingDiscount() {
+        return gamingDiscount;
+    }
+
+    public BigDecimal getGamingDiscountAmount() {
+        return gamingDiscountAmount;
+    }
+
+    public BigDecimal getDiscountedGamingAmount() {
+        return discountedGamingAmount;
     }
 
     public List<InvoiceItem> getPurchasedProducts() {

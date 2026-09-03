@@ -4,6 +4,7 @@ import com.gamecafe.gamecafemanager.domain.exception.DuplicateCheckoutException;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotActiveException;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotFoundException;
 import com.gamecafe.gamecafemanager.domain.model.CheckoutSummary;
+import com.gamecafe.gamecafemanager.domain.model.GamingDiscount;
 import com.gamecafe.gamecafemanager.domain.model.Permission;
 import com.gamecafe.gamecafemanager.domain.model.Session;
 import com.gamecafe.gamecafemanager.domain.model.SessionStatus;
@@ -42,6 +43,13 @@ public final class FinishSessionUseCase {
     }
 
     public Session execute(long sessionId, Instant endTime) {
+        return execute(sessionId, endTime, GamingDiscount.NONE);
+    }
+
+    public Session execute(
+            long sessionId,
+            Instant endTime,
+            GamingDiscount gamingDiscount) {
         authorization.require(Permission.CHECKOUT);
         Session activeSession = repository.findById(sessionId)
                 .orElseThrow(() -> new SessionNotFoundException(sessionId));
@@ -55,7 +63,8 @@ public final class FinishSessionUseCase {
         CheckoutSummary checkout = checkoutService.calculate(
                 activeSession,
                 sessionProductRepository.findBySessionId(sessionId),
-                Objects.requireNonNull(endTime, "endTime"));
+                Objects.requireNonNull(endTime, "endTime"),
+                Objects.requireNonNull(gamingDiscount, "gamingDiscount"));
 
         return repository.finish(new Session(
                 activeSession.getId(),
@@ -68,6 +77,9 @@ public final class FinishSessionUseCase {
                 SessionStatus.COMPLETED,
                 activeSession.getHourlyRateSnapshot(),
                 checkout.getGamingCost(),
+                checkout.getGamingDiscount(),
+                checkout.getGamingDiscountAmount(),
+                checkout.getDiscountedGamingCost(),
                 checkout.getProductsTotal(),
                 checkout.getFinalTotal()));
     }

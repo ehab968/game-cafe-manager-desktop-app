@@ -2,6 +2,7 @@ package com.gamecafe.gamecafemanager.presentation;
 
 import com.gamecafe.gamecafemanager.core.database.Database;
 import com.gamecafe.gamecafemanager.data.repository.SQLiteProductRepository;
+import com.gamecafe.gamecafemanager.data.repository.SQLiteProductSaleRepository;
 import com.gamecafe.gamecafemanager.data.repository.SQLiteReportRepository;
 import com.gamecafe.gamecafemanager.data.repository.SQLiteSessionProductRepository;
 import com.gamecafe.gamecafemanager.data.repository.SQLiteSessionRepository;
@@ -14,6 +15,7 @@ import com.gamecafe.gamecafemanager.data.sqlite.SQLiteDatabase;
 import com.gamecafe.gamecafemanager.domain.model.ApplicationSettings;
 import com.gamecafe.gamecafemanager.domain.model.User;
 import com.gamecafe.gamecafemanager.domain.repository.ProductRepository;
+import com.gamecafe.gamecafemanager.domain.repository.ProductSaleRepository;
 import com.gamecafe.gamecafemanager.domain.repository.ReportRepository;
 import com.gamecafe.gamecafemanager.domain.repository.SessionProductRepository;
 import com.gamecafe.gamecafemanager.domain.repository.SessionRepository;
@@ -25,6 +27,7 @@ import com.gamecafe.gamecafemanager.domain.service.ApplicationSettingsService;
 import com.gamecafe.gamecafemanager.domain.service.ApplicationSettingsValidator;
 import com.gamecafe.gamecafemanager.domain.service.AuthorizationService;
 import com.gamecafe.gamecafemanager.domain.service.CheckoutService;
+import com.gamecafe.gamecafemanager.domain.service.GamingDiscountService;
 import com.gamecafe.gamecafemanager.domain.service.InvoiceService;
 import com.gamecafe.gamecafemanager.domain.service.PasswordHasher;
 import com.gamecafe.gamecafemanager.domain.service.PricingService;
@@ -45,6 +48,7 @@ import com.gamecafe.gamecafemanager.domain.usecase.invoice.GenerateInvoiceUseCas
 import com.gamecafe.gamecafemanager.domain.usecase.product.CreateProductUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.GetProductsUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.SetProductEnabledUseCase;
+import com.gamecafe.gamecafemanager.domain.usecase.product.SellProductUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.UpdateProductStockUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.UpdateProductUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.report.GetReportUseCase;
@@ -99,6 +103,7 @@ public class GameCafeApplication extends Application {
     private SessionRepository sessionRepository;
     private SessionProductRepository sessionProductRepository;
     private ProductRepository productRepository;
+    private ProductSaleRepository productSaleRepository;
     private ReportRepository reportRepository;
     private SettingsRepository settingsRepository;
     private UserRepository userRepository;
@@ -152,6 +157,7 @@ public class GameCafeApplication extends Application {
         sessionRepository = new SQLiteSessionRepository(database);
         sessionProductRepository = new SQLiteSessionProductRepository(database);
         productRepository = new SQLiteProductRepository(database);
+        productSaleRepository = new SQLiteProductSaleRepository(database);
         reportRepository = new SQLiteReportRepository(database);
         settingsRepository = new SQLiteSettingsRepository(database);
         userRepository = new SQLiteUserRepository(database);
@@ -164,11 +170,15 @@ public class GameCafeApplication extends Application {
         settingsValidator = new ApplicationSettingsValidator();
         settingsService = new ApplicationSettingsService(settingsRepository);
         displayService = new ApplicationDisplayService(settingsService);
+        MonetaryRoundingPolicy monetaryRoundingPolicy =
+                MonetaryRoundingPolicy.standardCurrency();
         pricingService = new PricingService(
                 new SettingsBillableDurationPolicy(settingsService),
                 GamingPricePolicy.proratedHourlyRate(),
-                MonetaryRoundingPolicy.standardCurrency());
-        checkoutService = new CheckoutService(pricingService);
+                monetaryRoundingPolicy);
+        checkoutService = new CheckoutService(
+                pricingService,
+                new GamingDiscountService(monetaryRoundingPolicy));
         invoiceService = new InvoiceService(settingsService);
         receiptPrintingService = new ReceiptPrintingService(
                 settingsService,
@@ -229,6 +239,8 @@ public class GameCafeApplication extends Application {
                         authorizationService),
                 new AddProductToSessionUseCase(
                         sessionRepository, sessionProductRepository, authorizationService),
+                new SellProductUseCase(
+                        productSaleRepository, clock, authorizationService),
                 new GenerateInvoiceUseCase(
                         sessionRepository,
                         sessionProductRepository,

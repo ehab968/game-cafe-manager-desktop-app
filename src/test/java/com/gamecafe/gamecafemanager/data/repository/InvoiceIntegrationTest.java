@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.gamecafe.gamecafemanager.data.sqlite.SQLiteDatabase;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotCompletedException;
 import com.gamecafe.gamecafemanager.domain.model.Invoice;
+import com.gamecafe.gamecafemanager.domain.model.GamingDiscount;
 import com.gamecafe.gamecafemanager.domain.model.ApplicationSettings;
 import com.gamecafe.gamecafemanager.domain.model.Product;
 import com.gamecafe.gamecafemanager.domain.model.ReceiptDocument;
@@ -141,6 +142,9 @@ class InvoiceIntegrationTest {
         assertEquals(END_TIME, invoice.getEndTime());
         assertEquals(Duration.ofHours(1L), invoice.getDuration());
         assertEquals(new BigDecimal("80.00"), invoice.getGamingAmount());
+        assertEquals(GamingDiscount.NONE, invoice.getGamingDiscount());
+        assertEquals(new BigDecimal("0.00"), invoice.getGamingDiscountAmount());
+        assertEquals(new BigDecimal("80.00"), invoice.getDiscountedGamingAmount());
         assertEquals(1, invoice.getPurchasedProducts().size());
         assertEquals("Chips", invoice.getPurchasedProducts().get(0).getProductName());
         assertEquals(2, invoice.getPurchasedProducts().get(0).getQuantity());
@@ -188,13 +192,39 @@ class InvoiceIntegrationTest {
     }
 
     @Test
+    void invoiceUsesPersistedGamingDiscountWithoutChangingProductsOrRate() {
+        Session completed = new FinishSessionUseCase(
+                sessionRepository,
+                sessionProductRepository,
+                new CheckoutService(new PricingService()),
+                fixedClock(END_TIME),
+                authorization).execute(
+                        activeSession.getId(),
+                        END_TIME,
+                        GamingDiscount.TWENTY_PERCENT);
+
+        Invoice invoice = generateInvoice.execute(completed.getId());
+
+        assertEquals(new BigDecimal("80.00"), invoice.getHourlyRateSnapshot());
+        assertEquals(new BigDecimal("80.00"), invoice.getGamingAmount());
+        assertEquals(GamingDiscount.TWENTY_PERCENT, invoice.getGamingDiscount());
+        assertEquals(new BigDecimal("16.00"), invoice.getGamingDiscountAmount());
+        assertEquals(new BigDecimal("64.00"), invoice.getDiscountedGamingAmount());
+        assertEquals(new BigDecimal("20.00"), invoice.getProductsTotal());
+        assertEquals(new BigDecimal("84.00"), invoice.getTotal());
+    }
+
+    @Test
     void printFailureAndRepeatedReprintDoNotChangeCompletedBusinessData() {
         Session completed = new FinishSessionUseCase(
                 sessionRepository,
                 sessionProductRepository,
                 new CheckoutService(new PricingService()),
                 fixedClock(END_TIME),
-                authorization).execute(activeSession.getId());
+                authorization).execute(
+                        activeSession.getId(),
+                        END_TIME,
+                        GamingDiscount.FIFTY_PERCENT);
         Invoice invoice = generateInvoice.execute(completed.getId());
         FailingPrinter printer = new FailingPrinter();
         ReceiptPrintingService printing = new ReceiptPrintingService(
@@ -222,6 +252,13 @@ class InvoiceIntegrationTest {
         assertEquals(completed.getStatus(), reloaded.getStatus());
         assertEquals(completed.getEndTime(), reloaded.getEndTime());
         assertEquals(completed.getPlayCost(), reloaded.getPlayCost());
+        assertEquals(completed.getGamingDiscount(), reloaded.getGamingDiscount());
+        assertEquals(
+                completed.getGamingDiscountAmount(),
+                reloaded.getGamingDiscountAmount());
+        assertEquals(
+                completed.getDiscountedPlayCost(),
+                reloaded.getDiscountedPlayCost());
         assertEquals(completed.getProductsCost(), reloaded.getProductsCost());
         assertEquals(completed.getFinalTotal(), reloaded.getFinalTotal());
         assertEquals(8, reloadedProduct.getStockQuantity());

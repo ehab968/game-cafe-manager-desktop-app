@@ -62,6 +62,9 @@ public final class InvoiceService {
                 session.getEndTime(),
                 Duration.between(session.getStartTime(), session.getEndTime()),
                 session.getPlayCost(),
+                session.getGamingDiscount(),
+                session.getGamingDiscountAmount(),
+                session.getDiscountedPlayCost(),
                 items,
                 session.getProductsCost(),
                 session.getFinalTotal());

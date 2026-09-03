@@ -50,10 +50,11 @@ class SQLiteDatabaseTest {
         assertTrue(tables.contains("sessions"));
         assertTrue(tables.contains("products"));
         assertTrue(tables.contains("session_products"));
+        assertTrue(tables.contains("product_sales"));
         assertTrue(tables.contains("users"));
         assertTrue(tables.contains("application_settings"));
         assertTrue(tables.contains("remembered_authentication"));
-        assertEquals(12, queryForInt("SELECT MAX(version) FROM schema_migrations"));
+        assertEquals(14, queryForInt("SELECT MAX(version) FROM schema_migrations"));
         assertEquals(1, queryForInt(
                 "SELECT COUNT(*) FROM pragma_table_info('stations') "
                         + "WHERE name = 'single_hourly_rate_minor'"));
@@ -63,6 +64,15 @@ class SQLiteDatabaseTest {
         assertEquals(1, queryForInt(
                 "SELECT COUNT(*) FROM pragma_table_info('sessions') "
                         + "WHERE name = 'session_mode'"));
+        assertEquals(1, queryForInt(
+                "SELECT COUNT(*) FROM pragma_table_info('sessions') "
+                        + "WHERE name = 'gaming_discount_percent'"));
+        assertEquals(1, queryForInt(
+                "SELECT COUNT(*) FROM pragma_table_info('sessions') "
+                        + "WHERE name = 'gaming_discount_minor'"));
+        assertEquals(1, queryForInt(
+                "SELECT COUNT(*) FROM pragma_table_info('sessions') "
+                        + "WHERE name = 'discounted_gaming_total_minor'"));
         assertEquals(1, queryForInt(
                 "SELECT COUNT(*) FROM pragma_table_info('application_settings') "
                         + "WHERE name = 'receipt_printer_name'"));
@@ -75,6 +85,9 @@ class SQLiteDatabaseTest {
         assertEquals(1, queryForInt(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
                         + "AND name = 'sessions_completed_end_time_index'"));
+        assertEquals(1, queryForInt(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' "
+                        + "AND name = 'product_sales_sold_at_index'"));
     }
 
     @Test
@@ -82,7 +95,7 @@ class SQLiteDatabaseTest {
         database.initialize();
         database.initialize();
 
-        assertEquals(12, queryForInt("SELECT COUNT(*) FROM schema_migrations"));
+        assertEquals(14, queryForInt("SELECT COUNT(*) FROM schema_migrations"));
     }
 
     @Test

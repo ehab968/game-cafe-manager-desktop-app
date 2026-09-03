@@ -38,7 +38,7 @@ class V12ReceiptPrintingSettingsMigrationTest {
                 ReceiptPaperWidth.MM_80,
                 settings.getReceiptPrintSettings().getPaperWidth());
         assertEquals(false, settings.getReceiptPrintSettings().isAutoPrintAfterCheckout());
-        assertEquals(12, queryForInt(
+        assertEquals(14, queryForInt(
                 database, "SELECT MAX(version) FROM schema_migrations"));
     }
 
@@ -66,6 +66,10 @@ class V12ReceiptPrintingSettingsMigrationTest {
                             + "billing_rounding_minutes, updated_at) VALUES "
                             + "(1, 'Legacy Cafe', 'USD', 'Legacy footer', 30, 15, "
                             + "'2026-08-28T00:00:00Z')" );
+            statement.execute(
+                    "CREATE TABLE sessions ("
+                            + "id INTEGER PRIMARY KEY, "
+                            + "station_total_minor INTEGER NOT NULL)" );
         }
     }
 

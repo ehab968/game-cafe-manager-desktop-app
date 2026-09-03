@@ -15,6 +15,7 @@
             <Label text="Monitor stations, active time, and current gaming costs." styleClass="page-subtitle" />
         </VBox>
         <Region HBox.hgrow="ALWAYS" />
+        <Button text="Sell Product" onAction="#showProductSaleDialog" styleClass="primary-button" />
         <Button text="Refresh" onAction="#reloadDashboard" />
     </HBox>
     <ScrollPane fitToWidth="true" hbarPolicy="NEVER" VBox.vgrow="ALWAYS" styleClass="card-scroll">

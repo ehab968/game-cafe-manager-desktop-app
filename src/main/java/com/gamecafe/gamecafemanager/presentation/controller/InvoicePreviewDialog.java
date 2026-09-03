@@ -123,11 +123,25 @@ public final class InvoicePreviewDialog {
         GridPane totals = new GridPane();
         totals.setHgap(18.0);
         totals.setVgap(8.0);
-        totals.addRow(0, new Label("Products amount"),
+        int totalsRow = 0;
+        if (invoice.getGamingDiscount().isApplied()) {
+            totals.addRow(
+                    totalsRow++,
+                    new Label("Gaming discount ("
+                            + invoice.getGamingDiscount().getPercentage() + "%)"),
+                    new Label("-" + formatMoney(
+                            invoice, invoice.getGamingDiscountAmount())));
+            totals.addRow(
+                    totalsRow++,
+                    new Label("Gaming after discount"),
+                    new Label(formatMoney(
+                            invoice, invoice.getDiscountedGamingAmount())));
+        }
+        totals.addRow(totalsRow++, new Label("Products amount"),
                 new Label(formatMoney(invoice, invoice.getProductsTotal())));
         Label total = new Label(formatMoney(invoice, invoice.getTotal()));
         total.getStyleClass().add("invoice-total");
-        totals.addRow(1, new Label("Total"), total);
+        totals.addRow(totalsRow, new Label("Total"), total);
 
         VBox content = new VBox(12.0);
         content.getChildren().addAll(

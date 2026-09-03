@@ -3,6 +3,7 @@ package com.gamecafe.gamecafemanager.domain.usecase.session;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotActiveException;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotFoundException;
 import com.gamecafe.gamecafemanager.domain.model.CheckoutSummary;
+import com.gamecafe.gamecafemanager.domain.model.GamingDiscount;
 import com.gamecafe.gamecafemanager.domain.model.Permission;
 import com.gamecafe.gamecafemanager.domain.model.Session;
 import com.gamecafe.gamecafemanager.domain.model.SessionStatus;
@@ -40,6 +41,10 @@ public final class PrepareCheckoutUseCase {
     }
 
     public CheckoutSummary execute(long sessionId) {
+        return execute(sessionId, GamingDiscount.NONE);
+    }
+
+    public CheckoutSummary execute(long sessionId, GamingDiscount gamingDiscount) {
         authorization.require(Permission.CHECKOUT);
         Session session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new SessionNotFoundException(sessionId));
@@ -49,6 +54,7 @@ public final class PrepareCheckoutUseCase {
         return checkoutService.calculate(
                 session,
                 sessionProductRepository.findBySessionId(sessionId),
-                clock.instant());
+                clock.instant(),
+                Objects.requireNonNull(gamingDiscount, "gamingDiscount"));
     }
 }

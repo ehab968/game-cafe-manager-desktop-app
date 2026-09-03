@@ -20,6 +20,9 @@ public final class Session {
     private final SessionStatus status;
     private final BigDecimal hourlyRateSnapshot;
     private final BigDecimal playCost;
+    private final GamingDiscount gamingDiscount;
+    private final BigDecimal gamingDiscountAmount;
+    private final BigDecimal discountedPlayCost;
     private final BigDecimal productsCost;
     private final BigDecimal finalTotal;
 
@@ -36,6 +39,40 @@ public final class Session {
             BigDecimal playCost,
             BigDecimal productsCost,
             BigDecimal finalTotal) {
+        this(
+                id,
+                stationId,
+                stationNameSnapshot,
+                stationTypeSnapshot,
+                mode,
+                startTime,
+                endTime,
+                status,
+                hourlyRateSnapshot,
+                playCost,
+                GamingDiscount.NONE,
+                BigDecimal.ZERO.setScale(2),
+                playCost,
+                productsCost,
+                finalTotal);
+    }
+
+    public Session(
+            Long id,
+            long stationId,
+            String stationNameSnapshot,
+            StationType stationTypeSnapshot,
+            SessionMode mode,
+            Instant startTime,
+            Instant endTime,
+            SessionStatus status,
+            BigDecimal hourlyRateSnapshot,
+            BigDecimal playCost,
+            GamingDiscount gamingDiscount,
+            BigDecimal gamingDiscountAmount,
+            BigDecimal discountedPlayCost,
+            BigDecimal productsCost,
+            BigDecimal finalTotal) {
         this.id = id;
         this.stationId = stationId;
         this.stationNameSnapshot = Objects.requireNonNull(
@@ -49,6 +86,11 @@ public final class Session {
         this.hourlyRateSnapshot = Objects.requireNonNull(
                 hourlyRateSnapshot, "hourlyRateSnapshot");
         this.playCost = Objects.requireNonNull(playCost, "playCost");
+        this.gamingDiscount = Objects.requireNonNull(gamingDiscount, "gamingDiscount");
+        this.gamingDiscountAmount = Objects.requireNonNull(
+                gamingDiscountAmount, "gamingDiscountAmount");
+        this.discountedPlayCost = Objects.requireNonNull(
+                discountedPlayCost, "discountedPlayCost");
         this.productsCost = Objects.requireNonNull(productsCost, "productsCost");
         this.finalTotal = Objects.requireNonNull(finalTotal, "finalTotal");
     }
@@ -95,6 +137,18 @@ public final class Session {
 
     public BigDecimal getPlayCost() {
         return playCost;
+    }
+
+    public GamingDiscount getGamingDiscount() {
+        return gamingDiscount;
+    }
+
+    public BigDecimal getGamingDiscountAmount() {
+        return gamingDiscountAmount;
+    }
+
+    public BigDecimal getDiscountedPlayCost() {
+        return discountedPlayCost;
     }
 
     public BigDecimal getProductsCost() {

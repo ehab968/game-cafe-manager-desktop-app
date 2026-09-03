@@ -45,7 +45,7 @@
                     <Label fx:id="sessionsCountLabel" text="0" styleClass="metric-value" />
                 </VBox>
                 <VBox spacing="7.0" styleClass="metric-card">
-                    <Label text="Gaming revenue" styleClass="metric-label" />
+                    <Label text="Gaming revenue (net)" styleClass="metric-label" />
                     <Label fx:id="gamingRevenueLabel" text="0.00" styleClass="metric-value" />
                 </VBox>
                 <VBox spacing="7.0" styleClass="metric-card">

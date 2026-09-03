@@ -7,6 +7,7 @@ import com.gamecafe.gamecafemanager.domain.exception.DuplicateCheckoutException;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotActiveException;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotFoundException;
 import com.gamecafe.gamecafemanager.domain.model.Session;
+import com.gamecafe.gamecafemanager.domain.model.GamingDiscount;
 import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.SessionStatus;
 import com.gamecafe.gamecafemanager.domain.model.StationType;
@@ -34,7 +35,9 @@ public final class SQLiteSessionRepository implements SessionRepository {
     private static final String SELECT_COLUMNS =
             "id, station_id, station_name, station_type, session_mode, station_rate_minor, "
                     + "start_time, end_time, "
-                    + "status, station_total_minor, products_total_minor, final_total_minor";
+                    + "status, station_total_minor, gaming_discount_percent, "
+                    + "gaming_discount_minor, discounted_gaming_total_minor, "
+                    + "products_total_minor, final_total_minor";
 
     private final Database database;
 
@@ -47,8 +50,9 @@ public final class SQLiteSessionRepository implements SessionRepository {
         String sql = "INSERT INTO sessions("
                 + "station_id, station_name, station_type, session_mode, station_rate_minor, "
                 + "start_time, end_time, status, "
-                + "station_total_minor, products_total_minor, final_total_minor) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + "station_total_minor, gaming_discount_percent, gaming_discount_minor, "
+                + "discounted_gaming_total_minor, products_total_minor, final_total_minor) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(
@@ -64,8 +68,11 @@ public final class SQLiteSessionRepository implements SessionRepository {
             statement.setString(7, null);
             statement.setString(8, session.getStatus().name());
             statement.setLong(9, toMinorUnits(session.getPlayCost()));
-            statement.setLong(10, toMinorUnits(session.getProductsCost()));
-            statement.setLong(11, toMinorUnits(session.getFinalTotal()));
+            statement.setInt(10, session.getGamingDiscount().getPercentage());
+            statement.setLong(11, toMinorUnits(session.getGamingDiscountAmount()));
+            statement.setLong(12, toMinorUnits(session.getDiscountedPlayCost()));
+            statement.setLong(13, toMinorUnits(session.getProductsCost()));
+            statement.setLong(14, toMinorUnits(session.getFinalTotal()));
             statement.executeUpdate();
 
             try (ResultSet keys = statement.getGeneratedKeys()) {
@@ -93,9 +100,19 @@ public final class SQLiteSessionRepository implements SessionRepository {
 
         return database.executeInTransaction(connection -> {
             long playCostMinor = toMinorUnits(completedSession.getPlayCost());
-            claimActiveSession(connection, completedSession, playCostMinor);
+            long gamingDiscountMinor = toMinorUnits(
+                    completedSession.getGamingDiscountAmount());
+            long discountedPlayCostMinor = toMinorUnits(
+                    completedSession.getDiscountedPlayCost());
+            claimActiveSession(
+                    connection,
+                    completedSession,
+                    playCostMinor,
+                    gamingDiscountMinor,
+                    discountedPlayCostMinor);
             long productsTotalMinor = loadProductsTotal(connection, completedSession.getId());
-            long finalTotalMinor = Math.addExact(playCostMinor, productsTotalMinor);
+            long finalTotalMinor = Math.addExact(
+                    discountedPlayCostMinor, productsTotalMinor);
             storeCheckoutTotals(
                     connection,
                     completedSession.getId(),
@@ -112,6 +129,9 @@ public final class SQLiteSessionRepository implements SessionRepository {
                     completedSession.getStatus(),
                     completedSession.getHourlyRateSnapshot(),
                     fromMinorUnits(playCostMinor),
+                    completedSession.getGamingDiscount(),
+                    fromMinorUnits(gamingDiscountMinor),
+                    fromMinorUnits(discountedPlayCostMinor),
                     fromMinorUnits(productsTotalMinor),
                     fromMinorUnits(finalTotalMinor));
         });
@@ -182,6 +202,10 @@ public final class SQLiteSessionRepository implements SessionRepository {
                 SessionStatus.valueOf(resultSet.getString("status")),
                 fromMinorUnits(resultSet.getLong("station_rate_minor")),
                 fromMinorUnits(resultSet.getLong("station_total_minor")),
+                GamingDiscount.fromPercentage(
+                        resultSet.getInt("gaming_discount_percent")),
+                fromMinorUnits(resultSet.getLong("gaming_discount_minor")),
+                fromMinorUnits(resultSet.getLong("discounted_gaming_total_minor")),
                 fromMinorUnits(resultSet.getLong("products_total_minor")),
                 fromMinorUnits(resultSet.getLong("final_total_minor")));
     }
@@ -189,15 +213,22 @@ public final class SQLiteSessionRepository implements SessionRepository {
     private void claimActiveSession(
             Connection connection,
             Session completedSession,
-            long playCostMinor) throws SQLException {
+            long playCostMinor,
+            long gamingDiscountMinor,
+            long discountedPlayCostMinor) throws SQLException {
         String sql = "UPDATE sessions SET end_time = ?, status = 'COMPLETED', "
                 + "station_total_minor = ?, "
+                + "gaming_discount_percent = ?, gaming_discount_minor = ?, "
+                + "discounted_gaming_total_minor = ?, "
                 + "updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') "
                 + "WHERE id = ? AND status = 'ACTIVE'";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, completedSession.getEndTime().toString());
             statement.setLong(2, playCostMinor);
-            statement.setLong(3, completedSession.getId());
+            statement.setInt(3, completedSession.getGamingDiscount().getPercentage());
+            statement.setLong(4, gamingDiscountMinor);
+            statement.setLong(5, discountedPlayCostMinor);
+            statement.setLong(6, completedSession.getId());
             if (statement.executeUpdate() == 0) {
                 throwSessionCompletionFailure(connection, completedSession.getId());
             }
@@ -264,6 +295,9 @@ public final class SQLiteSessionRepository implements SessionRepository {
                 session.getStatus(),
                 session.getHourlyRateSnapshot(),
                 session.getPlayCost(),
+                session.getGamingDiscount(),
+                session.getGamingDiscountAmount(),
+                session.getDiscountedPlayCost(),
                 session.getProductsCost(),
                 session.getFinalTotal());
     }

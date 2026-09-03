@@ -2,7 +2,9 @@ package com.gamecafe.gamecafemanager.presentation.controller;
 
 import com.gamecafe.gamecafemanager.core.validation.ValidationException;
 import com.gamecafe.gamecafemanager.domain.model.Product;
+import com.gamecafe.gamecafemanager.domain.model.ProductSale;
 import com.gamecafe.gamecafemanager.domain.model.CheckoutSummary;
+import com.gamecafe.gamecafemanager.domain.model.GamingDiscount;
 import com.gamecafe.gamecafemanager.domain.model.Invoice;
 import com.gamecafe.gamecafemanager.domain.model.ReceiptPrintResult;
 import com.gamecafe.gamecafemanager.domain.model.ReceiptPrintStatus;
@@ -17,6 +19,7 @@ import com.gamecafe.gamecafemanager.domain.usecase.session.GetActiveSessionsUseC
 import com.gamecafe.gamecafemanager.domain.usecase.session.PrepareCheckoutUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.session.StartSessionUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.GetProductsUseCase;
+import com.gamecafe.gamecafemanager.domain.usecase.product.SellProductUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.sessionproduct.AddProductToSessionUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.invoice.GenerateInvoiceUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.station.GetStationsUseCase;
@@ -36,6 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.function.Consumer;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.collections.FXCollections;
@@ -78,6 +82,7 @@ public class DashboardController {
     private final PrepareCheckoutUseCase prepareCheckoutUseCase;
     private final GetProductsUseCase getProductsUseCase;
     private final AddProductToSessionUseCase addProductToSessionUseCase;
+    private final SellProductUseCase sellProductUseCase;
     private final GenerateInvoiceUseCase generateInvoiceUseCase;
     private final ReceiptPrintingService receiptPrintingService;
     private final PricingService pricingService;
@@ -99,6 +104,7 @@ public class DashboardController {
             PrepareCheckoutUseCase prepareCheckoutUseCase,
             GetProductsUseCase getProductsUseCase,
             AddProductToSessionUseCase addProductToSessionUseCase,
+            SellProductUseCase sellProductUseCase,
             GenerateInvoiceUseCase generateInvoiceUseCase,
             ReceiptPrintingService receiptPrintingService,
             PricingService pricingService,
@@ -117,6 +123,8 @@ public class DashboardController {
                 getProductsUseCase, "getProductsUseCase");
         this.addProductToSessionUseCase = Objects.requireNonNull(
                 addProductToSessionUseCase, "addProductToSessionUseCase");
+        this.sellProductUseCase = Objects.requireNonNull(
+                sellProductUseCase, "sellProductUseCase");
         this.generateInvoiceUseCase = Objects.requireNonNull(
                 generateInvoiceUseCase, "generateInvoiceUseCase");
         this.receiptPrintingService = Objects.requireNonNull(
@@ -294,9 +302,14 @@ public class DashboardController {
         try {
             CheckoutSummary checkout = prepareCheckoutUseCase.execute(
                     card.getActiveSessionId());
-            if (showCheckoutConfirmation(checkout)) {
+            Optional<CheckoutSummary> confirmedCheckout =
+                    showCheckoutConfirmation(checkout);
+            if (confirmedCheckout.isPresent()) {
+                CheckoutSummary confirmed = confirmedCheckout.get();
                 Session completed = finishSessionUseCase.execute(
-                        checkout.getSessionId(), checkout.getEndTime());
+                        confirmed.getSessionId(),
+                        confirmed.getEndTime(),
+                        confirmed.getGamingDiscount());
                 Invoice invoice = generateInvoiceUseCase.execute(completed.getId());
                 ReceiptPrintResult autoPrintResult = attemptAutoPrint(invoice);
                 reloadDashboard();
@@ -323,8 +336,9 @@ public class DashboardController {
         }
     }
 
-    private boolean showCheckoutConfirmation(CheckoutSummary checkout) {
-        Alert dialog = new Alert(Alert.AlertType.CONFIRMATION);
+    private Optional<CheckoutSummary> showCheckoutConfirmation(
+            CheckoutSummary checkout) {
+        Dialog<CheckoutSummary> dialog = new Dialog<>();
         UiStyles.apply(dialog.getDialogPane());
         dialog.setTitle("Session checkout");
         dialog.setHeaderText("Confirm checkout for " + checkout.getStationName());
@@ -348,12 +362,12 @@ public class DashboardController {
                 new Label(displayService.formatMoney(checkout.getHourlyRateSnapshot()) + "/hour"));
         details.addRow(detailRow++, new Label("Start time"),
                 new Label(CHECKOUT_TIME_FORMAT.format(checkout.getStartTime())));
-        details.addRow(detailRow++, new Label("End time"),
-                new Label(CHECKOUT_TIME_FORMAT.format(checkout.getEndTime())));
-        details.addRow(detailRow++, new Label("Duration"),
-                new Label(formatDuration(checkout.getDuration())));
-        details.addRow(detailRow, new Label("Gaming cost"),
-                new Label(displayService.formatMoney(checkout.getGamingCost())));
+        Label endTimeValue = new Label();
+        Label durationValue = new Label();
+        Label gamingCostValue = new Label();
+        details.addRow(detailRow++, new Label("End time"), endTimeValue);
+        details.addRow(detailRow++, new Label("Duration"), durationValue);
+        details.addRow(detailRow, new Label("Gaming cost"), gamingCostValue);
 
         VBox productLines = new VBox(6.0);
         if (checkout.getPurchasedProducts().isEmpty()) {
@@ -375,11 +389,57 @@ public class DashboardController {
         GridPane totals = new GridPane();
         totals.setHgap(18.0);
         totals.setVgap(8.0);
-        totals.addRow(0, new Label("Products total"),
-                new Label(displayService.formatMoney(checkout.getProductsTotal())));
-        Label finalTotal = new Label(displayService.formatMoney(checkout.getFinalTotal()));
+        ComboBox<GamingDiscount> discountField = new ComboBox<>(
+                FXCollections.observableArrayList(GamingDiscount.values()));
+        discountField.setValue(GamingDiscount.NONE);
+        discountField.setMaxWidth(Double.MAX_VALUE);
+        Label productsTotalValue = new Label();
+        Label discountAmountValue = new Label();
+        Label discountedGamingValue = new Label();
+        Label finalTotal = new Label();
         finalTotal.getStyleClass().add("checkout-total");
-        totals.addRow(1, new Label("Final total"), finalTotal);
+        totals.addRow(0, new Label("Gaming discount"), discountField);
+        totals.addRow(1, new Label("Discount amount"), discountAmountValue);
+        totals.addRow(2, new Label("Gaming after discount"), discountedGamingValue);
+        totals.addRow(3, new Label("Products total"), productsTotalValue);
+        totals.addRow(4, new Label("Final total"), finalTotal);
+
+        CheckoutSummary[] selectedCheckout = {checkout};
+        Consumer<CheckoutSummary> updatePreview = summary -> {
+            endTimeValue.setText(CHECKOUT_TIME_FORMAT.format(summary.getEndTime()));
+            durationValue.setText(formatDuration(summary.getDuration()));
+            gamingCostValue.setText(displayService.formatMoney(summary.getGamingCost()));
+            discountAmountValue.setText(summary.getGamingDiscount().isApplied()
+                    ? "-" + displayService.formatMoney(
+                            summary.getGamingDiscountAmount())
+                    : displayService.formatMoney(summary.getGamingDiscountAmount()));
+            discountedGamingValue.setText(displayService.formatMoney(
+                    summary.getDiscountedGamingCost()));
+            productsTotalValue.setText(displayService.formatMoney(
+                    summary.getProductsTotal()));
+            finalTotal.setText(displayService.formatMoney(summary.getFinalTotal()));
+        };
+        updatePreview.accept(checkout);
+
+        boolean[] updatingDiscount = {false};
+        discountField.valueProperty().addListener((observable, previous, selected) -> {
+            if (updatingDiscount[0] || selected == null) {
+                return;
+            }
+            try {
+                CheckoutSummary updated = prepareCheckoutUseCase.execute(
+                        checkout.getSessionId(), selected);
+                selectedCheckout[0] = updated;
+                updatePreview.accept(updated);
+            } catch (RuntimeException exception) {
+                updatingDiscount[0] = true;
+                discountField.setValue(previous == null
+                        ? GamingDiscount.NONE
+                        : previous);
+                updatingDiscount[0] = false;
+                showError("Could not update checkout discount", exception);
+            }
+        });
 
         VBox content = new VBox(
                 12.0,
@@ -395,12 +455,14 @@ public class DashboardController {
 
         ButtonType confirmType = new ButtonType(
                 "Confirm checkout", ButtonBar.ButtonData.OK_DONE);
-        dialog.getButtonTypes().setAll(confirmType, ButtonType.CANCEL);
+        dialog.getDialogPane().getButtonTypes().setAll(
+                confirmType, ButtonType.CANCEL);
         ((Button) dialog.getDialogPane().lookupButton(confirmType))
                 .getStyleClass().add("primary-button");
-        return dialog.showAndWait()
-                .filter(confirmType::equals)
-                .isPresent();
+        dialog.setResultConverter(button -> confirmType.equals(button)
+                ? selectedCheckout[0]
+                : null);
+        return dialog.showAndWait();
     }
 
     private String formatDuration(java.time.Duration duration) {
@@ -415,6 +477,87 @@ public class DashboardController {
         Instant currentTime = clock.instant();
         for (DashboardStationViewModel card : stationCards) {
             card.refresh(currentTime, pricingService);
+        }
+    }
+
+    @FXML
+    private void showProductSaleDialog() {
+        List<Product> availableProducts;
+        try {
+            availableProducts = getProductsUseCase.execute().stream()
+                    .filter(Product::isEnabled)
+                    .filter(product -> product.getStockQuantity() > 0)
+                    .collect(Collectors.toList());
+        } catch (RuntimeException exception) {
+            showError("Could not load products", exception);
+            return;
+        }
+        if (availableProducts.isEmpty()) {
+            showInformation(
+                    "No products available",
+                    "Enable products and add stock before recording a product sale.");
+            return;
+        }
+
+        Dialog<Void> dialog = new Dialog<>();
+        UiStyles.apply(dialog.getDialogPane());
+        dialog.setTitle("Sell product");
+        dialog.setHeaderText("Record a product sale without a gaming session");
+        dialog.initOwner(stationCardsPane.getScene().getWindow());
+
+        ComboBox<Product> productField = new ComboBox<>(
+                FXCollections.observableArrayList(availableProducts));
+        productField.setMaxWidth(Double.MAX_VALUE);
+        productField.setConverter(productConverter());
+        productField.setValue(availableProducts.get(0));
+        TextField quantityField = new TextField("1");
+
+        GridPane form = new GridPane();
+        form.setHgap(12.0);
+        form.setVgap(12.0);
+        form.setPadding(new Insets(8.0, 0.0, 0.0, 0.0));
+        form.addRow(0, new Label("Product"), productField);
+        form.addRow(1, new Label("Quantity"), quantityField);
+        Label note = new Label(
+                "Stock is reduced and the current product name and price are saved as sale history.");
+        note.setWrapText(true);
+        note.getStyleClass().add("helper-text");
+        form.add(note, 0, 2, 2, 1);
+        dialog.getDialogPane().setContent(form);
+        dialog.getDialogPane().setPrefWidth(520.0);
+
+        ButtonType sellType = new ButtonType(
+                "Complete sale", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(sellType, ButtonType.CANCEL);
+        Button sellButton = (Button) dialog.getDialogPane().lookupButton(sellType);
+        sellButton.getStyleClass().add("primary-button");
+        ProductSale[] completedSale = {null};
+        sellButton.addEventFilter(ActionEvent.ACTION, event -> {
+            try {
+                Product selectedProduct = productField.getValue();
+                if (selectedProduct == null) {
+                    throw ValidationException.forField(
+                            "product", "Select a product");
+                }
+                completedSale[0] = sellProductUseCase.execute(
+                        selectedProduct.getId(),
+                        parseQuantity(quantityField.getText()));
+            } catch (ValidationException exception) {
+                showError("Check sale details", exception);
+                event.consume();
+            } catch (RuntimeException exception) {
+                showError("Could not complete product sale", exception);
+                event.consume();
+            }
+        });
+        dialog.showAndWait();
+        if (completedSale[0] != null) {
+            ProductSale sale = completedSale[0];
+            showInformation(
+                    "Product sale completed",
+                    sale.getQuantity() + " × " + sale.getProductNameSnapshot()
+                            + " sold for "
+                            + displayService.formatMoney(sale.getLineTotal()) + ".");
         }
     }
 
@@ -445,21 +588,7 @@ public class DashboardController {
         ComboBox<Product> productField = new ComboBox<>(
                 FXCollections.observableArrayList(availableProducts));
         productField.setMaxWidth(Double.MAX_VALUE);
-        productField.setConverter(new StringConverter<Product>() {
-            @Override
-            public String toString(Product product) {
-                return product == null
-                        ? ""
-                        : product.getName() + " — "
-                                + displayService.formatMoney(product.getCurrentPrice())
-                                + " (stock " + product.getStockQuantity() + ")";
-            }
-
-            @Override
-            public Product fromString(String value) {
-                return null;
-            }
-        });
+        productField.setConverter(productConverter());
         productField.setValue(availableProducts.get(0));
         TextField quantityField = new TextField("1");
 
@@ -507,6 +636,24 @@ public class DashboardController {
         } catch (NumberFormatException exception) {
             throw ValidationException.forField("quantity", "Enter a whole quantity");
         }
+    }
+
+    private StringConverter<Product> productConverter() {
+        return new StringConverter<Product>() {
+            @Override
+            public String toString(Product product) {
+                return product == null
+                        ? ""
+                        : product.getName() + " — "
+                                + displayService.formatMoney(product.getCurrentPrice())
+                                + " (stock " + product.getStockQuantity() + ")";
+            }
+
+            @Override
+            public Product fromString(String value) {
+                return null;
+            }
+        };
     }
 
     private void showInformation(String title, String message) {

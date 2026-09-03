@@ -8,6 +8,7 @@ import com.gamecafe.gamecafemanager.core.validation.ValidationException;
 import com.gamecafe.gamecafemanager.data.sqlite.SQLiteDatabase;
 import com.gamecafe.gamecafemanager.domain.exception.AuthorizationException;
 import com.gamecafe.gamecafemanager.domain.model.CompletedSessionsReport;
+import com.gamecafe.gamecafemanager.domain.model.GamingDiscount;
 import com.gamecafe.gamecafemanager.domain.model.Product;
 import com.gamecafe.gamecafemanager.domain.model.Role;
 import com.gamecafe.gamecafemanager.domain.model.Session;
@@ -15,6 +16,7 @@ import com.gamecafe.gamecafemanager.domain.model.SessionMode;
 import com.gamecafe.gamecafemanager.domain.model.Station;
 import com.gamecafe.gamecafemanager.domain.model.StationType;
 import com.gamecafe.gamecafemanager.domain.repository.ProductRepository;
+import com.gamecafe.gamecafemanager.domain.repository.ProductSaleRepository;
 import com.gamecafe.gamecafemanager.domain.repository.ReportRepository;
 import com.gamecafe.gamecafemanager.domain.repository.SessionProductRepository;
 import com.gamecafe.gamecafemanager.domain.repository.SessionRepository;
@@ -26,6 +28,7 @@ import com.gamecafe.gamecafemanager.domain.service.ProductValidator;
 import com.gamecafe.gamecafemanager.domain.service.StationValidator;
 import com.gamecafe.gamecafemanager.domain.usecase.product.CreateProductUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.product.UpdateProductUseCase;
+import com.gamecafe.gamecafemanager.domain.usecase.product.SellProductUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.report.GetReportUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.session.FinishSessionUseCase;
 import com.gamecafe.gamecafemanager.domain.usecase.session.StartSessionUseCase;
@@ -58,6 +61,7 @@ class ReportIntegrationTest {
     private SQLiteDatabase database;
     private StationRepository stationRepository;
     private ProductRepository productRepository;
+    private ProductSaleRepository productSaleRepository;
     private SessionRepository sessionRepository;
     private SessionProductRepository sessionProductRepository;
     private AuthorizationService authorization;
@@ -69,6 +73,7 @@ class ReportIntegrationTest {
         database.initialize();
         stationRepository = new SQLiteStationRepository(database);
         productRepository = new SQLiteProductRepository(database);
+        productSaleRepository = new SQLiteProductSaleRepository(database);
         sessionRepository = new SQLiteSessionRepository(database);
         sessionProductRepository = new SQLiteSessionProductRepository(database);
         ReportRepository reportRepository = new SQLiteReportRepository(database);
@@ -82,8 +87,18 @@ class ReportIntegrationTest {
         Product chips = createProduct("Chips", new BigDecimal("5.00"));
 
         completeSession(roomA, FIRST_START, Duration.ofHours(1L), cola, 2);
-        completeSession(roomA, SECOND_START, Duration.ofMinutes(30L), chips, 1);
+        completeSession(
+                roomA,
+                SECOND_START,
+                Duration.ofMinutes(30L),
+                chips,
+                1,
+                GamingDiscount.FIFTY_PERCENT);
         completeSession(tableB, THIRD_START, Duration.ofMinutes(90L), cola, 3);
+        new SellProductUseCase(
+                productSaleRepository,
+                fixedClock(Instant.parse("2026-08-20T18:00:00Z")),
+                authorization).execute(chips.getId(), 4);
 
         new UpdateStationUseCase(
                 stationRepository, new StationValidator(), authorization).execute(
@@ -116,10 +131,10 @@ class ReportIntegrationTest {
         assertEquals(SECOND_DAY, today.getPeriod().getStartDate());
 
         CompletedSessionsReport daily = getReport.executeDay(FIRST_DAY);
-        assertSummary(daily, 2L, "180.00", "25.00", "205.00", Duration.ofMinutes(45L));
+        assertSummary(daily, 2L, "150.00", "45.00", "195.00", Duration.ofMinutes(45L));
 
         CompletedSessionsReport range = getReport.execute(FIRST_DAY, SECOND_DAY);
-        assertSummary(range, 3L, "300.00", "55.00", "355.00", Duration.ofHours(1L));
+        assertSummary(range, 3L, "270.00", "75.00", "345.00", Duration.ofHours(1L));
         assertEquals(FIRST_DAY, range.getPeriod().getStartDate());
         assertEquals(SECOND_DAY, range.getPeriod().getEndDate());
     }
@@ -140,7 +155,8 @@ class ReportIntegrationTest {
         assertEquals(5L, report.getProductSales().get(0).getQuantitySold());
         assertEquals(new BigDecimal("50.00"), report.getProductSales().get(0).getRevenue());
         assertEquals("Chips", report.getProductSales().get(1).getProductName());
-        assertEquals(1L, report.getProductSales().get(1).getQuantitySold());
+        assertEquals(5L, report.getProductSales().get(1).getQuantitySold());
+        assertEquals(new BigDecimal("25.00"), report.getProductSales().get(1).getRevenue());
     }
 
     @Test
@@ -186,6 +202,22 @@ class ReportIntegrationTest {
             Duration duration,
             Product product,
             int quantity) {
+        return completeSession(
+                station,
+                start,
+                duration,
+                product,
+                quantity,
+                GamingDiscount.NONE);
+    }
+
+    private Session completeSession(
+            Station station,
+            Instant start,
+            Duration duration,
+            Product product,
+            int quantity,
+            GamingDiscount gamingDiscount) {
         Session active = new StartSessionUseCase(
                 stationRepository,
                 sessionRepository,
@@ -202,7 +234,7 @@ class ReportIntegrationTest {
                 sessionProductRepository,
                 new CheckoutService(new PricingService()),
                 fixedClock(end),
-                authorization).execute(active.getId(), end);
+                authorization).execute(active.getId(), end, gamingDiscount);
     }
 
     private void assertSummary(

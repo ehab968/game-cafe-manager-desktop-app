@@ -45,7 +45,7 @@ class V11StationSessionModePricingMigrationTest {
         assertNull(legacySession.getMode());
         assertEquals(new BigDecimal("60.00"), legacySession.getHourlyRateSnapshot());
         assertEquals("2026-08-20T18:00:00Z", legacySession.getStartTime().toString());
-        assertEquals(12, queryForInt(
+        assertEquals(14, queryForInt(
                 database, "SELECT MAX(version) FROM schema_migrations"));
     }
 

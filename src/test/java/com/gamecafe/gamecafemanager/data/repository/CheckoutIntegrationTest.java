@@ -10,6 +10,7 @@ import com.gamecafe.gamecafemanager.data.sqlite.SQLiteDatabase;
 import com.gamecafe.gamecafemanager.domain.exception.DuplicateCheckoutException;
 import com.gamecafe.gamecafemanager.domain.exception.SessionNotActiveException;
 import com.gamecafe.gamecafemanager.domain.model.CheckoutSummary;
+import com.gamecafe.gamecafemanager.domain.model.GamingDiscount;
 import com.gamecafe.gamecafemanager.domain.model.Product;
 import com.gamecafe.gamecafemanager.domain.model.Session;
 import com.gamecafe.gamecafemanager.domain.model.SessionMode;
@@ -54,6 +55,10 @@ class CheckoutIntegrationTest {
     private Station station;
     private Session activeSession;
     private SessionRepository sessionRepository;
+    private SessionProductRepository sessionProductRepository;
+    private StationRepository stationRepository;
+    private ProductRepository productRepository;
+    private AuthorizationService authorization;
     private PrepareCheckoutUseCase prepareCheckout;
     private FinishSessionUseCase finishSession;
 
@@ -61,12 +66,12 @@ class CheckoutIntegrationTest {
     void setUp() {
         SQLiteDatabase database = new SQLiteDatabase(temporaryDirectory.resolve("checkout.db"));
         database.initialize();
-        StationRepository stationRepository = new SQLiteStationRepository(database);
-        ProductRepository productRepository = new SQLiteProductRepository(database);
+        stationRepository = new SQLiteStationRepository(database);
+        productRepository = new SQLiteProductRepository(database);
         sessionRepository = new SQLiteSessionRepository(database);
-        SessionProductRepository sessionProductRepository =
+        sessionProductRepository =
                 new SQLiteSessionProductRepository(database);
-        AuthorizationService authorization =
+        authorization =
                 AuthenticationTestSupport.authenticatedAdmin(database);
 
         station = new CreateStationUseCase(
@@ -122,6 +127,9 @@ class CheckoutIntegrationTest {
         assertEquals(CHECKOUT_TIME, summary.getEndTime());
         assertEquals(Duration.ofMinutes(90L), summary.getDuration());
         assertEquals(new BigDecimal("210.00"), summary.getGamingCost());
+        assertEquals(GamingDiscount.NONE, summary.getGamingDiscount());
+        assertEquals(new BigDecimal("0.00"), summary.getGamingDiscountAmount());
+        assertEquals(new BigDecimal("210.00"), summary.getDiscountedGamingCost());
         assertEquals(1, summary.getPurchasedProducts().size());
         assertEquals("Water", summary.getPurchasedProducts().get(0).getProductNameSnapshot());
         assertEquals(new BigDecimal("12.50"),
@@ -134,6 +142,77 @@ class CheckoutIntegrationTest {
                 .orElseThrow(AssertionError::new);
         assertEquals(SessionStatus.ACTIVE, stillActive.getStatus());
         assertTrue(sessionRepository.findActiveByStationId(station.getId()).isPresent());
+    }
+
+    @Test
+    void twentyPercentDiscountAffectsOnlyGamingAndPersistsEverySnapshot() {
+        CheckoutSummary summary = prepareCheckout.execute(
+                activeSession.getId(), GamingDiscount.TWENTY_PERCENT);
+
+        assertEquals(new BigDecimal("210.00"), summary.getGamingCost());
+        assertEquals(GamingDiscount.TWENTY_PERCENT, summary.getGamingDiscount());
+        assertEquals(new BigDecimal("42.00"), summary.getGamingDiscountAmount());
+        assertEquals(new BigDecimal("168.00"), summary.getDiscountedGamingCost());
+        assertEquals(new BigDecimal("25.00"), summary.getProductsTotal());
+        assertEquals(new BigDecimal("193.00"), summary.getFinalTotal());
+
+        Session completed = finishSession.execute(
+                summary.getSessionId(),
+                summary.getEndTime(),
+                summary.getGamingDiscount());
+        Session persisted = sessionRepository.findById(completed.getId())
+                .orElseThrow(AssertionError::new);
+
+        assertEquals(new BigDecimal("140.00"), persisted.getHourlyRateSnapshot());
+        assertEquals(new BigDecimal("210.00"), persisted.getPlayCost());
+        assertEquals(GamingDiscount.TWENTY_PERCENT, persisted.getGamingDiscount());
+        assertEquals(new BigDecimal("42.00"), persisted.getGamingDiscountAmount());
+        assertEquals(new BigDecimal("168.00"), persisted.getDiscountedPlayCost());
+        assertEquals(new BigDecimal("25.00"), persisted.getProductsCost());
+        assertEquals(new BigDecimal("193.00"), persisted.getFinalTotal());
+        Product persistedProduct = productRepository.findById(1L)
+                .orElseThrow(AssertionError::new);
+        assertEquals(new BigDecimal("12.50"), persistedProduct.getCurrentPrice());
+        assertEquals(8, persistedProduct.getStockQuantity());
+    }
+
+    @Test
+    void discountsWorkForSingleMultiBilliardAndPingPongSessions() {
+        assertDiscountedOneHourSession(
+                "PS Single",
+                StationType.PLAYSTATION,
+                SessionMode.SINGLE,
+                "60.00",
+                "80.00",
+                "48.00");
+        assertDiscountedOneHourSession(
+                "PS Multi",
+                StationType.PLAYSTATION,
+                SessionMode.MULTI,
+                "60.00",
+                "80.00",
+                "64.00");
+        assertDiscountedOneHourSession(
+                "Ping Pong Single",
+                StationType.PING_PONG,
+                SessionMode.SINGLE,
+                "40.00",
+                "60.00",
+                "32.00");
+        assertDiscountedOneHourSession(
+                "Ping Pong Multi",
+                StationType.PING_PONG,
+                SessionMode.MULTI,
+                "40.00",
+                "60.00",
+                "48.00");
+        assertDiscountedOneHourSession(
+                "Billiard Discount",
+                StationType.BILLIARD,
+                null,
+                "50.00",
+                null,
+                "40.00");
     }
 
     @Test
@@ -212,5 +291,37 @@ class CheckoutIntegrationTest {
 
     private Clock fixedClock(Instant instant) {
         return Clock.fixed(instant, ZoneOffset.UTC);
+    }
+
+    private void assertDiscountedOneHourSession(
+            String name,
+            StationType type,
+            SessionMode mode,
+            String singleRate,
+            String multiRate,
+            String expectedNet) {
+        CreateStationUseCase createStation = new CreateStationUseCase(
+                stationRepository, new StationValidator(), authorization);
+        Station created = type.supportsSessionModes()
+                ? createStation.execute(
+                        name,
+                        type,
+                        new BigDecimal(singleRate),
+                        new BigDecimal(multiRate))
+                : createStation.execute(name, type, new BigDecimal(singleRate));
+        Session started = new StartSessionUseCase(
+                stationRepository,
+                sessionRepository,
+                fixedClock(START_TIME),
+                authorization).execute(created.getId(), mode);
+
+        Session completed = finishSession.execute(
+                started.getId(),
+                START_TIME.plus(Duration.ofHours(1L)),
+                GamingDiscount.TWENTY_PERCENT);
+
+        assertEquals(GamingDiscount.TWENTY_PERCENT, completed.getGamingDiscount());
+        assertEquals(new BigDecimal(expectedNet), completed.getDiscountedPlayCost());
+        assertEquals(new BigDecimal(expectedNet), completed.getFinalTotal());
     }
 }
