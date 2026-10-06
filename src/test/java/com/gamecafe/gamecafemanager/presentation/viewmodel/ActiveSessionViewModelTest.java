@@ -11,6 +11,7 @@ import com.gamecafe.gamecafemanager.domain.service.PricingService;
 import com.gamecafe.gamecafemanager.presentation.format.ApplicationDisplayService;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class ActiveSessionViewModelTest {
@@ -54,6 +55,25 @@ class ActiveSessionViewModelTest {
 
         assertEquals("00:00:00", viewModel.getElapsedText());
         assertEquals("EGP 0.00", viewModel.getCurrentGamingCost());
+    }
+
+    @Test
+    void identicalRefreshDoesNotInvalidateDisplayPropertiesTwice() {
+        ActiveSessionViewModel viewModel = new ActiveSessionViewModel(
+                activeSession(), displayService);
+        AtomicInteger elapsedChanges = new AtomicInteger();
+        AtomicInteger costChanges = new AtomicInteger();
+        viewModel.elapsedTextProperty().addListener(
+                (observable, previous, current) -> elapsedChanges.incrementAndGet());
+        viewModel.currentGamingCostProperty().addListener(
+                (observable, previous, current) -> costChanges.incrementAndGet());
+        Instant currentTime = START_TIME.plusSeconds(5L);
+
+        viewModel.refresh(currentTime, pricingService);
+        viewModel.refresh(currentTime, pricingService);
+
+        assertEquals(1, elapsedChanges.get());
+        assertEquals(1, costChanges.get());
     }
 
     private Session activeSession() {

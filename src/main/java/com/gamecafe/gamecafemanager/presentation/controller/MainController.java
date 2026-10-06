@@ -33,6 +33,7 @@ import com.gamecafe.gamecafemanager.domain.usecase.station.SetStationEnabledUseC
 import com.gamecafe.gamecafemanager.domain.usecase.station.UpdateStationUseCase;
 import com.gamecafe.gamecafemanager.presentation.error.ApplicationErrorHandler;
 import com.gamecafe.gamecafemanager.presentation.format.ApplicationDisplayService;
+import com.gamecafe.gamecafemanager.presentation.timer.SessionDisplayTicker;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.List;
@@ -99,6 +100,7 @@ public class MainController {
     private final ApplicationErrorHandler errorHandler;
     private final Clock clock;
     private final Runnable onSettingsChanged;
+    private final SessionDisplayTicker sessionDisplayTicker;
 
     @FXML
     private VBox informationPage;
@@ -170,6 +172,7 @@ public class MainController {
             ApplicationDisplayService displayService,
             ApplicationErrorHandler errorHandler,
             Clock clock,
+            SessionDisplayTicker sessionDisplayTicker,
             AuthorizationService authorization,
             LogoutUseCase logoutUseCase,
             User authenticatedUser,
@@ -221,6 +224,8 @@ public class MainController {
         this.displayService = Objects.requireNonNull(displayService, "displayService");
         this.errorHandler = Objects.requireNonNull(errorHandler, "errorHandler");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.sessionDisplayTicker = Objects.requireNonNull(
+                sessionDisplayTicker, "sessionDisplayTicker");
         this.authorization = Objects.requireNonNull(authorization, "authorization");
         this.logoutUseCase = Objects.requireNonNull(logoutUseCase, "logoutUseCase");
         this.authenticatedUser = Objects.requireNonNull(authenticatedUser, "authenticatedUser");
@@ -568,6 +573,7 @@ public class MainController {
         informationPage.setManaged(false);
         activeSessionsView.setManaged(true);
         activeSessionsView.setVisible(true);
+        activeSessionsController.activate();
     }
 
     private Parent loadActiveSessionsView() {
@@ -577,7 +583,8 @@ public class MainController {
                 clock,
                 pricingService,
                 displayService,
-                errorHandler);
+                errorHandler,
+                sessionDisplayTicker);
         loader.setController(activeSessionsController);
         try {
             return loader.load();
@@ -587,6 +594,12 @@ public class MainController {
     }
 
     private void hideFeatureViews() {
+        if (dashboardController != null) {
+            dashboardController.deactivate();
+        }
+        if (activeSessionsController != null) {
+            activeSessionsController.deactivate();
+        }
         setHidden(dashboardView);
         setHidden(stationsView);
         setHidden(productsView);
@@ -608,6 +621,7 @@ public class MainController {
         informationPage.setManaged(false);
         dashboardView.setManaged(true);
         dashboardView.setVisible(true);
+        dashboardController.activate();
     }
 
     private Parent loadDashboardView() {
@@ -626,7 +640,8 @@ public class MainController {
                 pricingService,
                 displayService,
                 errorHandler,
-                clock);
+                clock,
+                sessionDisplayTicker);
         loader.setController(dashboardController);
         try {
             return loader.load();
@@ -674,5 +689,6 @@ public class MainController {
         if (activeSessionsController != null) {
             activeSessionsController.dispose();
         }
+        sessionDisplayTicker.close();
     }
 }

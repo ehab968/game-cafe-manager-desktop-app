@@ -5,7 +5,6 @@ import com.gamecafe.gamecafemanager.domain.service.PricingService;
 import com.gamecafe.gamecafemanager.domain.service.pricing.PricingResult;
 import com.gamecafe.gamecafemanager.presentation.format.ApplicationDisplayService;
 import java.math.BigDecimal;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import javafx.beans.property.ReadOnlyStringProperty;
@@ -25,6 +24,8 @@ public final class ActiveSessionViewModel {
     private final ApplicationDisplayService displayService;
     private final ReadOnlyStringWrapper elapsedText = new ReadOnlyStringWrapper("00:00:00");
     private final ReadOnlyStringWrapper currentGamingCost = new ReadOnlyStringWrapper();
+    private long displayedElapsedSeconds = Long.MIN_VALUE;
+    private BigDecimal displayedGamingPrice;
 
     public ActiveSessionViewModel(
             Session session,
@@ -50,8 +51,17 @@ public final class ActiveSessionViewModel {
                 startTime,
                 effectiveTime,
                 hourlyRateSnapshot);
-        elapsedText.set(formatDuration(result.getElapsedDuration()));
-        currentGamingCost.set(displayService.formatMoney(result.getGamingPrice()));
+        long elapsedSeconds = result.getElapsedDuration().getSeconds();
+        if (elapsedSeconds != displayedElapsedSeconds) {
+            displayedElapsedSeconds = elapsedSeconds;
+            elapsedText.set(formatDuration(elapsedSeconds));
+        }
+        BigDecimal gamingPrice = result.getGamingPrice();
+        if (displayedGamingPrice == null
+                || gamingPrice.compareTo(displayedGamingPrice) != 0) {
+            displayedGamingPrice = gamingPrice;
+            currentGamingCost.set(displayService.formatMoney(gamingPrice));
+        }
     }
 
     public long getSessionId() {
@@ -90,11 +100,23 @@ public final class ActiveSessionViewModel {
         return currentGamingCost.getReadOnlyProperty();
     }
 
-    private String formatDuration(Duration duration) {
-        long totalSeconds = duration.getSeconds();
+    private String formatDuration(long totalSeconds) {
         long hours = totalSeconds / 3_600L;
         long minutes = (totalSeconds % 3_600L) / 60L;
         long seconds = totalSeconds % 60L;
-        return String.format("%02d:%02d:%02d", hours, minutes, seconds);
+        StringBuilder formatted = new StringBuilder(8);
+        appendTwoDigits(formatted, hours);
+        formatted.append(':');
+        appendTwoDigits(formatted, minutes);
+        formatted.append(':');
+        appendTwoDigits(formatted, seconds);
+        return formatted.toString();
+    }
+
+    private void appendTwoDigits(StringBuilder target, long value) {
+        if (value < 10L) {
+            target.append('0');
+        }
+        target.append(value);
     }
 }

@@ -74,6 +74,7 @@ import com.gamecafe.gamecafemanager.presentation.error.ApplicationErrorHandler;
 import com.gamecafe.gamecafemanager.presentation.error.ApplicationErrorMapper;
 import com.gamecafe.gamecafemanager.presentation.format.ApplicationDisplayService;
 import com.gamecafe.gamecafemanager.presentation.style.UiStyles;
+import com.gamecafe.gamecafemanager.presentation.timer.SessionDisplayTicker;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.ZoneId;
@@ -122,6 +123,7 @@ public class GameCafeApplication extends Application {
     private InvoiceService invoiceService;
     private ReceiptPrintingService receiptPrintingService;
     private Clock clock;
+    private MainController mainController;
 
     @Override
     public void init() {
@@ -207,7 +209,7 @@ public class GameCafeApplication extends Application {
         GetProductsUseCase getProducts = new GetProductsUseCase(productRepository);
         GetActiveSessionsUseCase getActiveSessions =
                 new GetActiveSessionsUseCase(sessionRepository, authorizationService);
-        MainController mainController = new MainController(
+        mainController = new MainController(
                 new CreateStationUseCase(
                         stationRepository, stationValidator, authorizationService),
                 new UpdateStationUseCase(
@@ -266,6 +268,7 @@ public class GameCafeApplication extends Application {
                 displayService,
                 errorHandler,
                 clock,
+                new SessionDisplayTicker(),
                 authorizationService,
                 new LogoutUseCase(authenticationService),
                 user,
@@ -306,6 +309,13 @@ public class GameCafeApplication extends Application {
         Scene scene = new Scene(root, width, height);
         UiStyles.apply(scene);
         return scene;
+    }
+
+    @Override
+    public void stop() {
+        if (mainController != null) {
+            mainController.dispose();
+        }
     }
 
     public static void main(String[] args) {

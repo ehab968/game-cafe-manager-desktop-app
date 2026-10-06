@@ -20,8 +20,8 @@ public final class DashboardStationViewModel {
     private final Station station;
     private final Session activeSession;
     private final ActiveSessionViewModel activeSessionViewModel;
-    private final ReadOnlyStringWrapper elapsedText = new ReadOnlyStringWrapper("--");
-    private final ReadOnlyStringWrapper currentGamingCost = new ReadOnlyStringWrapper();
+    private final ReadOnlyStringProperty elapsedText;
+    private final ReadOnlyStringProperty currentGamingCost;
 
     public DashboardStationViewModel(
             Station station,
@@ -30,7 +30,6 @@ public final class DashboardStationViewModel {
         this.station = Objects.requireNonNull(station, "station");
         ApplicationDisplayService display = Objects.requireNonNull(
                 displayService, "displayService");
-        currentGamingCost.set(display.formatMoney(BigDecimal.ZERO.setScale(2)));
         this.activeSession = activeSession;
         if (activeSession != null && activeSession.getStationId() != station.getId()) {
             throw new IllegalArgumentException("Active session belongs to a different station");
@@ -38,6 +37,14 @@ public final class DashboardStationViewModel {
         this.activeSessionViewModel = activeSession == null
                 ? null
                 : new ActiveSessionViewModel(activeSession, display);
+        this.elapsedText = activeSessionViewModel == null
+                ? new ReadOnlyStringWrapper("--").getReadOnlyProperty()
+                : activeSessionViewModel.elapsedTextProperty();
+        this.currentGamingCost = activeSessionViewModel == null
+                ? new ReadOnlyStringWrapper(
+                        display.formatMoney(BigDecimal.ZERO.setScale(2)))
+                        .getReadOnlyProperty()
+                : activeSessionViewModel.currentGamingCostProperty();
     }
 
     public void refresh(Instant currentTime, PricingService pricingService) {
@@ -45,8 +52,6 @@ public final class DashboardStationViewModel {
             return;
         }
         activeSessionViewModel.refresh(currentTime, pricingService);
-        elapsedText.set(activeSessionViewModel.getElapsedText());
-        currentGamingCost.set(activeSessionViewModel.getCurrentGamingCost());
     }
 
     public long getStationId() {
@@ -102,18 +107,18 @@ public final class DashboardStationViewModel {
     }
 
     public String getElapsedText() {
-        return elapsedText.get();
+        return elapsedText.getValue();
     }
 
     public ReadOnlyStringProperty elapsedTextProperty() {
-        return elapsedText.getReadOnlyProperty();
+        return elapsedText;
     }
 
     public String getCurrentGamingCost() {
-        return currentGamingCost.get();
+        return currentGamingCost.getValue();
     }
 
     public ReadOnlyStringProperty currentGamingCostProperty() {
-        return currentGamingCost.getReadOnlyProperty();
+        return currentGamingCost;
     }
 }

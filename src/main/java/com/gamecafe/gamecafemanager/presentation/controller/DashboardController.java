@@ -26,6 +26,7 @@ import com.gamecafe.gamecafemanager.domain.usecase.station.GetStationsUseCase;
 import com.gamecafe.gamecafemanager.presentation.component.UiComponents;
 import com.gamecafe.gamecafemanager.presentation.error.ApplicationErrorHandler;
 import com.gamecafe.gamecafemanager.presentation.style.UiStyles;
+import com.gamecafe.gamecafemanager.presentation.timer.SessionDisplayTicker;
 import com.gamecafe.gamecafemanager.presentation.viewmodel.DashboardStationViewModel;
 import com.gamecafe.gamecafemanager.presentation.format.ApplicationDisplayService;
 import java.time.Clock;
@@ -40,8 +41,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.function.Consumer;
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
 import javafx.collections.FXCollections;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -62,7 +61,6 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.TilePane;
 import javafx.scene.layout.VBox;
-import javafx.util.Duration;
 import javafx.util.StringConverter;
 
 /**
@@ -89,12 +87,13 @@ public class DashboardController {
     private final ApplicationDisplayService displayService;
     private final ApplicationErrorHandler errorHandler;
     private final Clock clock;
+    private final SessionDisplayTicker sessionDisplayTicker;
     private final List<DashboardStationViewModel> stationCards = new ArrayList<>();
 
     @FXML
     private TilePane stationCardsPane;
 
-    private Timeline refreshTimeline;
+    private boolean viewActive;
 
     public DashboardController(
             GetStationsUseCase getStationsUseCase,
@@ -110,7 +109,8 @@ public class DashboardController {
             PricingService pricingService,
             ApplicationDisplayService displayService,
             ApplicationErrorHandler errorHandler,
-            Clock clock) {
+            Clock clock,
+            SessionDisplayTicker sessionDisplayTicker) {
         this.getStationsUseCase = Objects.requireNonNull(getStationsUseCase, "getStationsUseCase");
         this.getActiveSessionsUseCase = Objects.requireNonNull(
                 getActiveSessionsUseCase, "getActiveSessionsUseCase");
@@ -133,16 +133,13 @@ public class DashboardController {
         this.displayService = Objects.requireNonNull(displayService, "displayService");
         this.errorHandler = Objects.requireNonNull(errorHandler, "errorHandler");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.sessionDisplayTicker = Objects.requireNonNull(
+                sessionDisplayTicker, "sessionDisplayTicker");
     }
 
     @FXML
     private void initialize() {
         reloadDashboard();
-        refreshTimeline = new Timeline(new KeyFrame(
-                Duration.seconds(1.0),
-                event -> refreshLiveValues()));
-        refreshTimeline.setCycleCount(Timeline.INDEFINITE);
-        refreshTimeline.play();
     }
 
     @FXML
@@ -173,7 +170,9 @@ public class DashboardController {
                         "Create and enable a station to start operating sessions.")));
             }
             refreshLiveValues();
+            updateTickerState();
         } catch (RuntimeException exception) {
+            updateTickerState();
             stationCardsPane.getChildren().setAll(dashboardState(UiComponents.errorState(
                     "Dashboard unavailable",
                     "Station and session data could not be loaded.",
@@ -480,6 +479,31 @@ public class DashboardController {
         }
     }
 
+    public void activate() {
+        viewActive = true;
+        refreshLiveValues();
+        updateTickerState();
+    }
+
+    public void deactivate() {
+        if (!viewActive) {
+            return;
+        }
+        viewActive = false;
+        sessionDisplayTicker.stop();
+    }
+
+    private void updateTickerState() {
+        if (!viewActive) {
+            return;
+        }
+        if (stationCards.stream().anyMatch(DashboardStationViewModel::isActive)) {
+            sessionDisplayTicker.start(this::refreshLiveValues);
+        } else {
+            sessionDisplayTicker.stop();
+        }
+    }
+
     @FXML
     private void showProductSaleDialog() {
         List<Product> availableProducts;
@@ -678,8 +702,6 @@ public class DashboardController {
     }
 
     public void dispose() {
-        if (refreshTimeline != null) {
-            refreshTimeline.stop();
-        }
+        deactivate();
     }
 }

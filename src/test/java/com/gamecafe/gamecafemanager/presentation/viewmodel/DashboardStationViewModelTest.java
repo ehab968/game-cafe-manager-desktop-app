@@ -2,6 +2,7 @@ package com.gamecafe.gamecafemanager.presentation.viewmodel;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.gamecafe.gamecafemanager.domain.model.Session;
@@ -14,6 +15,7 @@ import com.gamecafe.gamecafemanager.domain.service.PricingService;
 import com.gamecafe.gamecafemanager.presentation.format.ApplicationDisplayService;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class DashboardStationViewModelTest {
@@ -61,6 +63,30 @@ class DashboardStationViewModelTest {
         assertEquals("Disabled", viewModel.getStatusText());
     }
 
+    @Test
+    void refreshesMultipleSingleMultiAndBilliardSessionsFromOneTimeSnapshot() {
+        List<DashboardStationViewModel> viewModels = List.of(
+                activeViewModel(
+                        1L, StationType.PLAYSTATION, SessionMode.SINGLE, "60.00"),
+                activeViewModel(
+                        2L, StationType.PING_PONG, SessionMode.MULTI, "80.00"),
+                activeViewModel(
+                        3L, StationType.BILLIARD, null, "50.00"));
+
+        Instant sharedCurrentTime = START_TIME.plusSeconds(5_400L);
+        viewModels.forEach(viewModel ->
+                viewModel.refresh(sharedCurrentTime, pricingService));
+
+        assertEquals("EGP 90.00", viewModels.get(0).getCurrentGamingCost());
+        assertEquals(SessionMode.SINGLE, viewModels.get(0).getActiveSessionMode());
+        assertEquals("EGP 120.00", viewModels.get(1).getCurrentGamingCost());
+        assertEquals(SessionMode.MULTI, viewModels.get(1).getActiveSessionMode());
+        assertEquals("EGP 75.00", viewModels.get(2).getCurrentGamingCost());
+        assertNull(viewModels.get(2).getActiveSessionMode());
+        viewModels.forEach(viewModel ->
+                assertEquals("01:30:00", viewModel.getElapsedText()));
+    }
+
     private Station station(boolean enabled) {
         return new Station(
                 7L,
@@ -85,5 +111,30 @@ class DashboardStationViewModelTest {
                 new BigDecimal("0.00"),
                 new BigDecimal("0.00"),
                 new BigDecimal("0.00"));
+    }
+
+    private DashboardStationViewModel activeViewModel(
+            long id,
+            StationType type,
+            SessionMode mode,
+            String hourlyRate) {
+        BigDecimal rate = new BigDecimal(hourlyRate);
+        Station station = type.supportsSessionModes()
+                ? new Station(id, "Station " + id, type, rate, rate, true)
+                : new Station(id, "Station " + id, type, rate, true);
+        Session session = new Session(
+                id,
+                id,
+                station.getName(),
+                type,
+                mode,
+                START_TIME,
+                null,
+                SessionStatus.ACTIVE,
+                rate,
+                BigDecimal.ZERO.setScale(2),
+                BigDecimal.ZERO.setScale(2),
+                BigDecimal.ZERO.setScale(2));
+        return new DashboardStationViewModel(station, session, displayService);
     }
 }

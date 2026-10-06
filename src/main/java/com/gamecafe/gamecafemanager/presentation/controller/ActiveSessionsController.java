@@ -5,6 +5,7 @@ import com.gamecafe.gamecafemanager.domain.service.PricingService;
 import com.gamecafe.gamecafemanager.domain.usecase.session.GetActiveSessionsUseCase;
 import com.gamecafe.gamecafemanager.presentation.component.UiComponents;
 import com.gamecafe.gamecafemanager.presentation.error.ApplicationErrorHandler;
+import com.gamecafe.gamecafemanager.presentation.timer.SessionDisplayTicker;
 import com.gamecafe.gamecafemanager.presentation.viewmodel.ActiveSessionViewModel;
 import com.gamecafe.gamecafemanager.presentation.format.ApplicationDisplayService;
 import java.time.Clock;
@@ -12,19 +13,17 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
-import javafx.animation.KeyFrame;
-import javafx.animation.Timeline;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
-import javafx.util.Duration;
 
 /**
- * Refreshes timer presentation once per second. Timeline ticks never mutate or
- * accumulate elapsed time; each tick recomputes it from Clock and startTime.
+ * Refreshes timer presentation from the shared display ticker. Ticks never
+ * mutate or accumulate elapsed time; each refresh recomputes it from Clock and
+ * startTime.
  */
 public class ActiveSessionsController {
 
@@ -37,6 +36,7 @@ public class ActiveSessionsController {
     private final PricingService pricingService;
     private final ApplicationDisplayService displayService;
     private final ApplicationErrorHandler errorHandler;
+    private final SessionDisplayTicker sessionDisplayTicker;
     private final ObservableList<ActiveSessionViewModel> sessions =
             FXCollections.observableArrayList();
 
@@ -58,20 +58,23 @@ public class ActiveSessionsController {
     @FXML
     private TableColumn<ActiveSessionViewModel, String> statusColumn;
 
-    private Timeline refreshTimeline;
+    private boolean viewActive;
 
     public ActiveSessionsController(
             GetActiveSessionsUseCase getActiveSessionsUseCase,
             Clock clock,
             PricingService pricingService,
             ApplicationDisplayService displayService,
-            ApplicationErrorHandler errorHandler) {
+            ApplicationErrorHandler errorHandler,
+            SessionDisplayTicker sessionDisplayTicker) {
         this.getActiveSessionsUseCase = Objects.requireNonNull(
                 getActiveSessionsUseCase, "getActiveSessionsUseCase");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.pricingService = Objects.requireNonNull(pricingService, "pricingService");
         this.displayService = Objects.requireNonNull(displayService, "displayService");
         this.errorHandler = Objects.requireNonNull(errorHandler, "errorHandler");
+        this.sessionDisplayTicker = Objects.requireNonNull(
+                sessionDisplayTicker, "sessionDisplayTicker");
     }
 
     @FXML
@@ -89,11 +92,6 @@ public class ActiveSessionsController {
         activeSessionsTable.setItems(sessions);
 
         reloadSessions();
-        refreshTimeline = new Timeline(new KeyFrame(
-                Duration.seconds(1.0),
-                event -> refreshElapsedTimes()));
-        refreshTimeline.setCycleCount(Timeline.INDEFINITE);
-        refreshTimeline.play();
     }
 
     @FXML
@@ -108,7 +106,9 @@ public class ActiveSessionsController {
                     "No active sessions",
                     "Start a station from the dashboard and it will appear here."));
             refreshElapsedTimes();
+            updateTickerState();
         } catch (RuntimeException exception) {
+            updateTickerState();
             activeSessionsTable.setPlaceholder(UiComponents.errorState(
                     "Active sessions unavailable",
                     "Running sessions could not be loaded.",
@@ -124,6 +124,31 @@ public class ActiveSessionsController {
         }
     }
 
+    public void activate() {
+        viewActive = true;
+        refreshElapsedTimes();
+        updateTickerState();
+    }
+
+    public void deactivate() {
+        if (!viewActive) {
+            return;
+        }
+        viewActive = false;
+        sessionDisplayTicker.stop();
+    }
+
+    private void updateTickerState() {
+        if (!viewActive) {
+            return;
+        }
+        if (sessions.isEmpty()) {
+            sessionDisplayTicker.stop();
+        } else {
+            sessionDisplayTicker.start(this::refreshElapsedTimes);
+        }
+    }
+
     private void showError(String title, Throwable failure) {
         errorHandler.show(
                 activeSessionsTable.getScene() == null
@@ -134,8 +159,6 @@ public class ActiveSessionsController {
     }
 
     public void dispose() {
-        if (refreshTimeline != null) {
-            refreshTimeline.stop();
-        }
+        deactivate();
     }
 }

@@ -106,7 +106,6 @@
 .information-card,
 .section-card,
 .metric-card,
-.station-card,
 .login-card {
     -fx-background-color: white;
     -fx-background-radius: 10;
@@ -138,6 +137,10 @@
 }
 
 .station-card {
+    -fx-background-color: white;
+    -fx-background-radius: 10;
+    -fx-border-color: #e0e6ee;
+    -fx-border-radius: 10;
     -fx-padding: 18;
     -fx-spacing: 9;
 }
