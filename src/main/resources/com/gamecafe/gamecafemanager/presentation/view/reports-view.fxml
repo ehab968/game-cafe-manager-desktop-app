@@ -38,27 +38,36 @@
 
             <Label fx:id="periodLabel" styleClass="section-title" />
 
-            <TilePane hgap="10.0" vgap="10.0" prefColumns="5"
-                      prefTileWidth="138.0" prefTileHeight="84.0">
+            <TilePane hgap="10.0" vgap="10.0" prefColumns="3"
+                      prefTileWidth="220.0" prefTileHeight="104.0">
                 <VBox spacing="7.0" styleClass="metric-card">
-                    <Label text="Sessions" styleClass="metric-label" />
-                    <Label fx:id="sessionsCountLabel" text="0" styleClass="metric-value" />
+                    <Label text="Sessions" maxWidth="Infinity" wrapText="true" styleClass="metric-label" />
+                    <Label fx:id="sessionsCountLabel" text="0" maxWidth="Infinity" wrapText="true"
+                           styleClass="metric-value" />
                 </VBox>
                 <VBox spacing="7.0" styleClass="metric-card">
-                    <Label text="Gaming revenue (net)" styleClass="metric-label" />
-                    <Label fx:id="gamingRevenueLabel" text="0.00" styleClass="metric-value" />
+                    <Label text="Gaming revenue (net)" maxWidth="Infinity" wrapText="true"
+                           styleClass="metric-label" />
+                    <Label fx:id="gamingRevenueLabel" text="0.00" maxWidth="Infinity" wrapText="true"
+                           styleClass="metric-value" />
                 </VBox>
                 <VBox spacing="7.0" styleClass="metric-card">
-                    <Label text="Products revenue" styleClass="metric-label" />
-                    <Label fx:id="productsRevenueLabel" text="0.00" styleClass="metric-value" />
+                    <Label text="Products revenue" maxWidth="Infinity" wrapText="true"
+                           styleClass="metric-label" />
+                    <Label fx:id="productsRevenueLabel" text="0.00" maxWidth="Infinity" wrapText="true"
+                           styleClass="metric-value" />
                 </VBox>
                 <VBox spacing="7.0" styleClass="metric-card">
-                    <Label text="Total revenue" styleClass="metric-label" />
-                    <Label fx:id="totalRevenueLabel" text="0.00" styleClass="metric-value" />
+                    <Label text="Total revenue" maxWidth="Infinity" wrapText="true"
+                           styleClass="metric-label" />
+                    <Label fx:id="totalRevenueLabel" text="0.00" maxWidth="Infinity" wrapText="true"
+                           styleClass="metric-value" />
                 </VBox>
                 <VBox spacing="7.0" styleClass="metric-card">
-                    <Label text="Average duration" styleClass="metric-label" />
-                    <Label fx:id="averageDurationLabel" text="0:00:00" styleClass="metric-value" />
+                    <Label text="Average duration" maxWidth="Infinity" wrapText="true"
+                           styleClass="metric-label" />
+                    <Label fx:id="averageDurationLabel" text="0:00:00" maxWidth="Infinity" wrapText="true"
+                           styleClass="metric-value" />
                 </VBox>
             </TilePane>
 
