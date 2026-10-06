@@ -8,7 +8,7 @@ Java, JavaFX, Maven, NetBeans, SQLite, or any development tool.
 ## Release configuration
 
 - Application name: `GameCafeManager`
-- Application version: `1.2.0` (read from `pom.xml`)
+- Application version: `1.2.1` (read from `pom.xml`)
 - Vendor: `Ehab Salah`
 - Main module: `com.gamecafe.gamecafemanager`
 - Main class: `com.gamecafe.gamecafemanager.presentation.GameCafeApplication`
@@ -21,7 +21,7 @@ The release keeps the existing Java 11 bytecode target, JavaFX 13, and SQLite JD
 3.53.2.1. The build JDK can be newer because its `jpackage`/`jlink` tools create the
 private runtime that ships with the application.
 
-Version 1.2.0 uses the same application name, per-user install location, and Windows
+Version 1.2.1 uses the same application name, per-user install location, and Windows
 upgrade UUID as version 1.0.0. Installing it over 1.0.0 upgrades the application while
 leaving the database under the user's `.game-cafe-manager` directory untouched. On
 first launch, the ordered database migrations preserve existing data while adding:
